@@ -1,0 +1,79 @@
+# hack/seed-tenants/argo-apps.yaml
+# ArgoCD Applications for testing
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tenant-alpha
+  namespace: argocd
+  labels:
+    platform.io/tenant: alpha
+spec:
+  description: Tenant Alpha applications
+  sourceRepos:
+    - '*'
+  destinations:
+    - namespace: tenant-alpha
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tenant-beta
+  namespace: argocd
+  labels:
+    platform.io/tenant: beta
+spec:
+  description: Tenant Beta applications
+  sourceRepos:
+    - '*'
+  destinations:
+    - namespace: tenant-beta
+      server: https://kubernetes.default.svc
+---
+# Sample Argo Application - Healthy state
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alpha-ml-platform
+  namespace: argocd
+  labels:
+    platform.io/tenant: alpha
+    platform.io/component: ml
+spec:
+  project: tenant-alpha
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tenant-alpha
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+---
+# Sample Argo Application - Will be out of sync
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: beta-data-pipeline
+  namespace: argocd
+  labels:
+    platform.io/tenant: beta
+    platform.io/component: data
+spec:
+  project: tenant-beta
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tenant-beta
+  # No syncPolicy - will be OutOfSync
+

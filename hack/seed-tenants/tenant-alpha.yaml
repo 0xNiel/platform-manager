@@ -1,0 +1,88 @@
+# hack/seed-tenants/tenant-alpha.yaml
+# Tenant Alpha - ML workloads
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-training-service
+  namespace: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+    platform.io/component: ml
+    app.kubernetes.io/name: ml-training-service
+    app.kubernetes.io/part-of: ml-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ml-training-service
+  template:
+    metadata:
+      labels:
+        app: ml-training-service
+        platform.io/tenant: alpha
+        platform.io/component: ml
+    spec:
+      containers:
+        - name: trainer
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-api
+  namespace: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+    platform.io/component: ml
+    app.kubernetes.io/name: inference-api
+    app.kubernetes.io/part-of: ml-platform
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: inference-api
+  template:
+    metadata:
+      labels:
+        app: inference-api
+        platform.io/tenant: alpha
+        platform.io/component: ml
+    spec:
+      containers:
+        - name: api
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-api
+  namespace: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+spec:
+  selector:
+    app: inference-api
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+

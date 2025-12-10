@@ -1,0 +1,74 @@
+# Dockerfile.toolbox
+# Toolbox image for web terminal sessions
+FROM debian:bookworm-slim
+
+# Install base tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    jq \
+    vim \
+    less \
+    bash-completion \
+    groff \
+    mandoc \
+    ca-certificates \
+    unzip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && ./aws/install \
+    && rm -rf aws awscliv2.zip
+
+# Install stern for log tailing
+RUN curl -LO "https://github.com/stern/stern/releases/download/v1.28.0/stern_1.28.0_linux_amd64.tar.gz" \
+    && tar -xzf stern_1.28.0_linux_amd64.tar.gz \
+    && mv stern /usr/local/bin/ \
+    && rm -f stern_1.28.0_linux_amd64.tar.gz
+
+# Install k9s
+RUN curl -LO "https://github.com/derailed/k9s/releases/download/v0.31.7/k9s_Linux_amd64.tar.gz" \
+    && tar -xzf k9s_Linux_amd64.tar.gz \
+    && mv k9s /usr/local/bin/ \
+    && rm -f k9s_Linux_amd64.tar.gz LICENSE README.md
+
+# Install kubectx and kubens
+RUN curl -LO "https://github.com/ahmetb/kubectx/releases/download/v0.9.5/kubectx_v0.9.5_linux_x86_64.tar.gz" \
+    && tar -xzf kubectx_v0.9.5_linux_x86_64.tar.gz \
+    && mv kubectx /usr/local/bin/ \
+    && rm -f kubectx_v0.9.5_linux_x86_64.tar.gz LICENSE
+
+RUN curl -LO "https://github.com/ahmetb/kubectx/releases/download/v0.9.5/kubens_v0.9.5_linux_x86_64.tar.gz" \
+    && tar -xzf kubens_v0.9.5_linux_x86_64.tar.gz \
+    && mv kubens /usr/local/bin/ \
+    && rm -f kubens_v0.9.5_linux_x86_64.tar.gz LICENSE
+
+# Create audit directory
+RUN mkdir -p /audit
+
+# Add custom shell wrapper for auditing
+COPY hack/toolbox/audit-shell.sh /usr/local/bin/audit-shell
+RUN chmod +x /usr/local/bin/audit-shell 2>/dev/null || echo "Audit shell not found, skipping"
+
+# Set up bash configuration
+RUN echo 'export PS1="\[\033[1;32m\][\u@toolbox \w]\$\[\033[0m\] "' >> /root/.bashrc \
+    && echo 'alias k=kubectl' >> /root/.bashrc \
+    && echo 'alias kgp="kubectl get pods"' >> /root/.bashrc \
+    && echo 'alias kgs="kubectl get svc"' >> /root/.bashrc \
+    && echo 'alias kgd="kubectl get deploy"' >> /root/.bashrc \
+    && echo 'source /usr/share/bash-completion/bash_completion' >> /root/.bashrc \
+    && echo 'source <(kubectl completion bash)' >> /root/.bashrc \
+    && echo 'complete -F __start_kubectl k' >> /root/.bashrc
+
+WORKDIR /root
+
+ENTRYPOINT ["/bin/bash"]
+

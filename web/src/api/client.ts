@@ -1,0 +1,172 @@
+// web/src/api/client.ts
+// API client for Platform Manager backend
+import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
+
+// Create axios instance with defaults
+const apiClient: AxiosInstance = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Request interceptor for adding auth headers if needed
+apiClient.interceptors.request.use(
+  (config) => {
+    // OAuth2Proxy handles auth at gateway level
+    // Headers like X-Auth-Request-User are set by the gateway
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      // Handle specific error codes
+      switch (error.response.status) {
+        case 401:
+          console.error('Unauthorized - redirecting to login')
+          // Gateway handles auth redirect
+          break
+        case 403:
+          console.error('Forbidden - insufficient permissions')
+          break
+        case 500:
+          console.error('Server error:', error.response.data)
+          break
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
+// API types
+export interface PlatformHealth {
+  overallHealth: 'healthy' | 'warning' | 'critical'
+  resourceStates: ResourceStateCounts
+  crossplane: CrossplaneSummary
+  argo: ArgoSummary
+  iamDrift: IAMDriftSummary
+}
+
+export interface ResourceStateCounts {
+  ready: number
+  failed: number
+  waiting: number
+  unknown: number
+  paused: number
+  total: number
+}
+
+export interface CrossplaneSummary {
+  compositions: number
+  claims: number
+  xrs: number
+  failed: number
+}
+
+export interface ArgoSummary {
+  totalApps: number
+  synced: number
+  outOfSync: number
+  healthy: number
+  degraded: number
+}
+
+export interface IAMDriftSummary {
+  totalRoles: number
+  rolesWithDrift: number
+  extraPrivileges: number
+  missingPrivileges: number
+}
+
+export interface Tenant {
+  id: string
+  name: string
+  namespaces: string[]
+  status: 'healthy' | 'warning' | 'critical'
+}
+
+export interface TenantHealth {
+  tenantRef: string
+  overallHealth: string
+  crossplaneResources: ResourceStateCounts
+  kubernetesResources: ResourceStateCounts
+  iamDrift: IAMDriftSummary
+  argo: ArgoSummary
+  cpuUsage: string
+  memoryUsage: string
+}
+
+// API methods
+export const api = {
+  // Health endpoints
+  async getPlatformHealth(): Promise<PlatformHealth> {
+    const response = await apiClient.get('/health/platform')
+    return response.data
+  },
+
+  async getTenantHealthList(): Promise<TenantHealth[]> {
+    const response = await apiClient.get('/health/tenants')
+    return response.data
+  },
+
+  async getTenantHealth(id: string): Promise<TenantHealth> {
+    const response = await apiClient.get(`/health/tenants/${id}`)
+    return response.data
+  },
+
+  // Tenant endpoints
+  async getTenants(): Promise<Tenant[]> {
+    const response = await apiClient.get('/tenants')
+    return response.data
+  },
+
+  async getTenant(id: string): Promise<Tenant> {
+    const response = await apiClient.get(`/tenants/${id}`)
+    return response.data
+  },
+
+  // Resource endpoints
+  async getResources(params?: {
+    tenant?: string
+    state?: string
+    kind?: string
+    search?: string
+  }): Promise<unknown[]> {
+    const response = await apiClient.get('/resources', { params })
+    return response.data
+  },
+
+  // IAM endpoints
+  async getIAMDriftSummary(): Promise<IAMDriftSummary> {
+    const response = await apiClient.get('/iam/drift')
+    return response.data
+  },
+
+  async triggerIAMScan(): Promise<void> {
+    await apiClient.post('/iam/scan')
+  },
+
+  // Action endpoints
+  async syncArgoApp(appName: string, prune = false): Promise<void> {
+    await apiClient.post('/actions/argo/sync', { appName, prune })
+  },
+
+  async pauseCrossplaneResource(resourceRef: string): Promise<void> {
+    await apiClient.post('/actions/crossplane/pause', { resourceRef })
+  },
+
+  async unpauseCrossplaneResource(resourceRef: string): Promise<void> {
+    await apiClient.post('/actions/crossplane/unpause', { resourceRef })
+  },
+}
+
+export default apiClient
+

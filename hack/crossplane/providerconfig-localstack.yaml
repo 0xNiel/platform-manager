@@ -1,0 +1,75 @@
+# hack/crossplane/providerconfig-localstack.yaml
+# ProviderConfig for LocalStack Community
+#
+# Available LocalStack Community services:
+# - IAM, STS, S3, S3Control
+# - Lambda, EC2
+# - DynamoDB, DynamoDB Streams, Redshift, OpenSearch, ES
+# - SQS, SNS, Kinesis, Firehose, Events
+# - Route53, Route53Resolver, API Gateway
+# - CloudWatch, Logs
+# - KMS, Secrets Manager, ACM
+# - CloudFormation, Config, SSM
+# - Step Functions, SWF, SES, Transcribe, Support, Scheduler
+# - Resource Groups, Resource Groups Tagging API
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-localstack-creds
+  namespace: crossplane-system
+type: Opaque
+stringData:
+  credentials: |
+    [default]
+    aws_access_key_id = test
+    aws_secret_access_key = test
+---
+apiVersion: aws.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: localstack
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: aws-localstack-creds
+      key: credentials
+  endpoint:
+    # LocalStack endpoint
+    # host.docker.internal works from Kind on Mac
+    url:
+      type: Static
+      static: http://host.docker.internal:4566
+    hostnameImmutable: true
+    # Services available in LocalStack Community
+    services:
+      - iam
+      - sts
+      - s3
+      - s3control
+      - lambda
+      - ec2
+      - dynamodb
+      - sqs
+      - sns
+      - kinesis
+      - firehose
+      - events
+      - route53
+      - route53resolver
+      - apigateway
+      - cloudwatch
+      - logs
+      - kms
+      - secretsmanager
+      - acm
+      - cloudformation
+      - config
+      - ssm
+      - stepfunctions
+      - redshift
+      - opensearch
+      - es
+

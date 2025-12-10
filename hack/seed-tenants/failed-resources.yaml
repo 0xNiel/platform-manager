@@ -1,0 +1,85 @@
+# hack/seed-tenants/failed-resources.yaml
+# Resources intentionally configured to fail for testing
+# Use: make seed-failed-resources
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: failing-deployment
+  namespace: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+    platform.io/test: "failed-state"
+    platform.io/test-type: "image-pull-error"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: failing-app
+  template:
+    metadata:
+      labels:
+        app: failing-app
+        platform.io/tenant: alpha
+        platform.io/test: "failed-state"
+    spec:
+      containers:
+        - name: fail
+          # This image doesn't exist - will cause ImagePullBackOff
+          image: nonexistent-registry.io/nonexistent-image:v999.999.999
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crashloop-pod
+  namespace: tenant-beta
+  labels:
+    platform.io/tenant: beta
+    platform.io/test: "failed-state"
+    platform.io/test-type: "crashloop"
+spec:
+  restartPolicy: Always
+  containers:
+    - name: crasher
+      image: busybox
+      # This will exit immediately, causing CrashLoopBackOff
+      command: ["sh", "-c", "echo 'Intentional crash for testing' && exit 1"]
+      resources:
+        requests:
+          memory: "16Mi"
+          cpu: "10m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pending-deployment
+  namespace: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+    platform.io/test: "failed-state"
+    platform.io/test-type: "pending-resources"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pending-app
+  template:
+    metadata:
+      labels:
+        app: pending-app
+        platform.io/tenant: alpha
+        platform.io/test: "failed-state"
+    spec:
+      containers:
+        - name: pending
+          image: nginx:alpine
+          resources:
+            # Request more resources than available in Kind
+            requests:
+              memory: "8Gi"
+              cpu: "4000m"
+

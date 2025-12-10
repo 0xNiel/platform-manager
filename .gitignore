@@ -1,0 +1,64 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+*.out
+cover.out
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes
+*.kubeconfig
+
+# LocalStack
+.localstack/
+volume/
+
+# Node modules (frontend)
+web/node_modules/
+web/dist/
+web/.cache/
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Temporary files
+tmp/
+temp/
+
+# Build artifacts
+/platform-manager
+
+# Terraform / OpenTofu (if used for testing)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Helm
+charts/*.tgz
+
+# Local bin
+bin/
+

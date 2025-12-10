@@ -1,0 +1,38 @@
+# hack/seed-tenants/namespaces.yaml
+# Namespaces for test tenants
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+    platform.io/environment: dev
+    platform.io/component: ml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-beta
+  labels:
+    platform.io/tenant: beta
+    platform.io/environment: dev
+    platform.io/component: data
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-gamma
+  labels:
+    platform.io/tenant: gamma
+    platform.io/environment: dev
+    platform.io/component: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: toolbox-sessions
+  labels:
+    platform.io/component: toolbox
+    platform.io/managed-by: platform-manager
+

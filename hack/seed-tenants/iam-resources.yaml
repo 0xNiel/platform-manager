@@ -1,0 +1,142 @@
+# hack/seed-tenants/iam-resources.yaml
+# Crossplane IAM resources pointing to LocalStack
+# These resources will be created in LocalStack for testing
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tenant-alpha-lambda-role
+  labels:
+    platform.io/tenant: alpha
+    platform.io/component: ml
+    platform.io/resource-type: iam-role
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      - key: tenant
+        value: alpha
+      - key: managed-by
+        value: crossplane
+      - key: environment
+        value: dev
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tenant-alpha-s3-policy
+  labels:
+    platform.io/tenant: alpha
+    platform.io/component: ml
+    platform.io/resource-type: iam-policy
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "S3Access",
+            "Effect": "Allow",
+            "Action": [
+              "s3:GetObject",
+              "s3:PutObject",
+              "s3:ListBucket"
+            ],
+            "Resource": [
+              "arn:aws:s3:::tenant-alpha-*",
+              "arn:aws:s3:::tenant-alpha-*/*"
+            ]
+          }
+        ]
+      }
+    tags:
+      - key: tenant
+        value: alpha
+      - key: managed-by
+        value: crossplane
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tenant-beta-data-role
+  labels:
+    platform.io/tenant: beta
+    platform.io/component: data
+    platform.io/resource-type: iam-role
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      - key: tenant
+        value: beta
+      - key: managed-by
+        value: crossplane
+      - key: environment
+        value: dev
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tenant-beta-dynamodb-policy
+  labels:
+    platform.io/tenant: beta
+    platform.io/component: data
+    platform.io/resource-type: iam-policy
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "DynamoDBAccess",
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:GetItem",
+              "dynamodb:PutItem",
+              "dynamodb:Query",
+              "dynamodb:Scan"
+            ],
+            "Resource": "arn:aws:dynamodb:*:*:table/tenant-beta-*"
+          }
+        ]
+      }
+    tags:
+      - key: tenant
+        value: beta
+      - key: managed-by
+        value: crossplane
+

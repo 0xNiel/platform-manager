@@ -1,0 +1,86 @@
+# hack/seed-tenants/tenant-beta.yaml
+# Tenant Beta - Data pipeline workloads
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etl-processor
+  namespace: tenant-beta
+  labels:
+    platform.io/tenant: beta
+    platform.io/component: data
+    app.kubernetes.io/name: etl-processor
+    app.kubernetes.io/part-of: data-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etl-processor
+  template:
+    metadata:
+      labels:
+        app: etl-processor
+        platform.io/tenant: beta
+        platform.io/component: data
+    spec:
+      containers:
+        - name: processor
+          image: nginx:alpine
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-api
+  namespace: tenant-beta
+  labels:
+    platform.io/tenant: beta
+    platform.io/component: data
+    app.kubernetes.io/name: data-api
+    app.kubernetes.io/part-of: data-pipeline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data-api
+  template:
+    metadata:
+      labels:
+        app: data-api
+        platform.io/tenant: beta
+        platform.io/component: data
+    spec:
+      containers:
+        - name: api
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-api
+  namespace: tenant-beta
+  labels:
+    platform.io/tenant: beta
+spec:
+  selector:
+    app: data-api
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+

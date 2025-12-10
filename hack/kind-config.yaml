@@ -1,0 +1,29 @@
+# hack/kind-config.yaml
+# Kind cluster configuration for Platform Manager development
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: platform-manager
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # ArgoCD UI
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      # Platform Manager API
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP
+      # Platform Manager Frontend (dev)
+      - containerPort: 30082
+        hostPort: 3000
+        protocol: TCP
+  - role: worker
+  - role: worker
+
