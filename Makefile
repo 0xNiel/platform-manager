@@ -50,12 +50,14 @@ dev-up: kind-create install-argocd install-crossplane setup-localstack-provider 
 	@echo "✅ Development environment ready!"
 	@echo ""
 	@echo "📋 Quick Reference:"
-	@echo "   ArgoCD UI: https://localhost:8080"
+	@echo "   ArgoCD UI: https://localhost:9080 (or use: make argocd-port-forward)"
 	@echo "   ArgoCD Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
+	@echo "   Platform API: http://localhost:9081"
+	@echo "   Frontend Dev: http://localhost:9082"
 	@echo "   LocalStack: $(LOCALSTACK_ENDPOINT)"
 	@echo ""
 	@echo "🔧 Useful commands:"
-	@echo "   make argocd-port-forward  # Access ArgoCD UI"
+	@echo "   make argocd-port-forward  # Access ArgoCD UI on localhost:8443"
 	@echo "   make localstack-health    # Check LocalStack"
 	@echo "   kubectl get providers     # Check Crossplane providers"
 
@@ -162,12 +164,12 @@ argocd-password: ## Get ArgoCD admin password
 
 .PHONY: argocd-port-forward
 argocd-port-forward: ## Port forward ArgoCD UI (runs in foreground)
-	@echo "ArgoCD UI available at: https://localhost:8080"
+	@echo "ArgoCD UI available at: https://localhost:8443"
 	@echo "Username: admin"
 	@echo "Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
 	@echo ""
 	@echo "Press Ctrl+C to stop port forwarding"
-	@kubectl port-forward svc/argocd-server -n argocd 8080:443
+	@kubectl port-forward svc/argocd-server -n argocd 8443:443
 
 # ==============================================================================
 # Crossplane
