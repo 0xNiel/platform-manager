@@ -1,11 +1,13 @@
 # hack/crossplane/provider-aws.yaml
 # Crossplane AWS IAM Provider for local development
+# Compatible with Crossplane v1.20.0
 ---
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
   name: provider-aws-iam
 spec:
+  # Using v1.7.0 which is compatible with Crossplane 1.20.0
   package: xpkg.upbound.io/upbound/provider-aws-iam:v1.7.0
   runtimeConfigRef:
     name: provider-aws-iam
@@ -30,4 +32,11 @@ spec:
                   value: "test"
                 - name: AWS_SECRET_ACCESS_KEY
                   value: "test"
+              resources:
+                limits:
+                  memory: 256Mi
+                  cpu: 200m
+                requests:
+                  memory: 128Mi
+                  cpu: 100m
 

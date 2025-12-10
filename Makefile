@@ -7,6 +7,10 @@ KIND_CLUSTER_NAME ?= platform-manager
 LOCALSTACK_ENDPOINT ?= http://host.docker.internal:4566
 AWS_REGION ?= us-east-1
 
+# Crossplane versions (using v1.x, not v2)
+CROSSPLANE_VERSION ?= 1.20.0
+CROSSPLANE_AWS_PROVIDER_VERSION ?= v1.7.0
+
 # Image variables
 IMG ?= platform-manager:dev
 TOOLBOX_IMG ?= platform-manager-toolbox:dev
@@ -81,6 +85,28 @@ dev-status: ## Check status of dev environment
 # Kind Cluster
 # ==============================================================================
 
+##@ Docker Cleanup
+
+.PHONY: docker-cleanup
+docker-cleanup: ## Clean up Docker to free disk space
+	@echo "Cleaning up Docker..."
+	@docker system prune -f
+	@docker volume prune -f
+	@echo "✅ Docker cleanup complete"
+	@docker system df
+
+.PHONY: docker-cleanup-all
+docker-cleanup-all: ## Aggressive Docker cleanup (removes all unused images)
+	@echo "Aggressive Docker cleanup..."
+	@docker system prune -af
+	@docker volume prune -f
+	@echo "✅ Docker cleanup complete"
+	@docker system df
+
+# ==============================================================================
+# Kind Cluster
+# ==============================================================================
+
 ##@ Kind Cluster
 
 .PHONY: kind-create
@@ -94,7 +120,16 @@ kind-create: ## Create Kind cluster
 
 .PHONY: kind-delete
 kind-delete: ## Delete Kind cluster
-	kind delete cluster --name $(KIND_CLUSTER_NAME)
+	kind delete cluster --name $(KIND_CLUSTER_NAME) 2>/dev/null || true
+	@echo "✅ Kind cluster deleted"
+
+.PHONY: kind-cleanup
+kind-cleanup: ## Force cleanup of failed Kind cluster
+	@echo "Force cleaning up Kind cluster..."
+	@kind delete cluster --name $(KIND_CLUSTER_NAME) 2>/dev/null || true
+	@docker rm -f $$(docker ps -a -q --filter "name=platform-manager") 2>/dev/null || true
+	@docker network rm kind 2>/dev/null || true
+	@echo "✅ Kind cleanup complete"
 
 .PHONY: kind-load-image
 kind-load-image: docker-build ## Load image into Kind cluster
@@ -141,13 +176,14 @@ argocd-port-forward: ## Port forward ArgoCD UI (runs in foreground)
 ##@ Crossplane
 
 .PHONY: install-crossplane
-install-crossplane: ## Install Crossplane with AWS Provider
-	@echo "Installing Crossplane..."
+install-crossplane: ## Install Crossplane v$(CROSSPLANE_VERSION) with AWS Provider
+	@echo "Installing Crossplane v$(CROSSPLANE_VERSION)..."
 	@helm repo add crossplane-stable https://charts.crossplane.io/stable 2>/dev/null || true
 	@helm repo update
 	@helm upgrade --install crossplane crossplane-stable/crossplane \
 		--namespace crossplane-system \
 		--create-namespace \
+		--version $(CROSSPLANE_VERSION) \
 		--wait
 	@echo "Waiting for Crossplane to be ready..."
 	@kubectl wait --for=condition=available --timeout=300s deployment/crossplane -n crossplane-system
@@ -156,7 +192,7 @@ install-crossplane: ## Install Crossplane with AWS Provider
 	@echo "Waiting for AWS Provider to initialize (this may take 1-2 minutes)..."
 	@sleep 20
 	@kubectl wait --for=condition=healthy --timeout=300s provider.pkg.crossplane.io/provider-aws-iam 2>/dev/null || echo "Provider still initializing, continuing..."
-	@echo "✅ Crossplane with AWS Provider installed"
+	@echo "✅ Crossplane v$(CROSSPLANE_VERSION) with AWS Provider installed"
 
 .PHONY: setup-localstack-provider
 setup-localstack-provider: ## Configure Crossplane to use LocalStack

@@ -1,5 +1,6 @@
 # hack/kind-config.yaml
 # Kind cluster configuration for Platform Manager development
+# Using single node to reduce resource usage for local dev
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: platform-manager
@@ -24,6 +25,7 @@ nodes:
       - containerPort: 30082
         hostPort: 3000
         protocol: TCP
-  - role: worker
-  - role: worker
+# Uncomment below to add worker nodes if needed (requires more Docker resources)
+# - role: worker
+# - role: worker
 
