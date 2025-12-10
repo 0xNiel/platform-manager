@@ -40,10 +40,10 @@ const (
 type ResourceCategory string
 
 const (
-	ResourceCategoryCrossplane  ResourceCategory = "Crossplane"
-	ResourceCategoryKubernetes  ResourceCategory = "Kubernetes"
-	ResourceCategoryArgoCD      ResourceCategory = "ArgoCD"
-	ResourceCategoryIAM         ResourceCategory = "IAM"
+	ResourceCategoryCrossplane ResourceCategory = "Crossplane"
+	ResourceCategoryKubernetes ResourceCategory = "Kubernetes"
+	ResourceCategoryArgoCD     ResourceCategory = "ArgoCD"
+	ResourceCategoryIAM        ResourceCategory = "IAM"
 )
 
 // ConditionSummary is a condensed view of a condition

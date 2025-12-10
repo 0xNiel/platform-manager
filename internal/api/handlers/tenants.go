@@ -38,21 +38,21 @@ func NewTenantHandler(c client.Client) *TenantHandler {
 
 // TenantResponse is the API response for a tenant
 type TenantResponse struct {
-	Name           string           `json:"name"`
-	DisplayName    string           `json:"displayName"`
-	Description    string           `json:"description,omitempty"`
-	Phase          string           `json:"phase"`
-	Namespaces     []string         `json:"namespaces"`
-	ArgoProjects   []string         `json:"argoProjects,omitempty"`
-	AWSAccounts    []string         `json:"awsAccounts,omitempty"`
+	Name           string            `json:"name"`
+	DisplayName    string            `json:"displayName"`
+	Description    string            `json:"description,omitempty"`
+	Phase          string            `json:"phase"`
+	Namespaces     []string          `json:"namespaces"`
+	ArgoProjects   []string          `json:"argoProjects,omitempty"`
+	AWSAccounts    []string          `json:"awsAccounts,omitempty"`
 	Contacts       []ContactResponse `json:"contacts,omitempty"`
-	CostCenter     string           `json:"costCenter,omitempty"`
-	Environment    string           `json:"environment,omitempty"`
-	NamespaceCount int              `json:"namespaceCount"`
-	ResourceCount  int              `json:"resourceCount"`
-	HealthRef      string           `json:"healthRef,omitempty"`
-	LastReconciled string           `json:"lastReconciled,omitempty"`
-	CreatedAt      string           `json:"createdAt"`
+	CostCenter     string            `json:"costCenter,omitempty"`
+	Environment    string            `json:"environment,omitempty"`
+	NamespaceCount int               `json:"namespaceCount"`
+	ResourceCount  int               `json:"resourceCount"`
+	HealthRef      string            `json:"healthRef,omitempty"`
+	LastReconciled string            `json:"lastReconciled,omitempty"`
+	CreatedAt      string            `json:"createdAt"`
 }
 
 // ContactResponse is the API response for a tenant contact
@@ -138,23 +138,23 @@ func (h *TenantHandler) ListResources(w http.ResponseWriter, r *http.Request) {
 
 // ResourceSummaryResponse is the API response for a resource summary
 type ResourceSummaryResponse struct {
-	Name           string   `json:"name"`
-	Group          string   `json:"group,omitempty"`
-	Version        string   `json:"version"`
-	Kind           string   `json:"kind"`
-	Namespace      string   `json:"namespace,omitempty"`
-	ResourceName   string   `json:"resourceName"`
-	TenantRef      string   `json:"tenantRef,omitempty"`
-	Category       string   `json:"category,omitempty"`
-	Provider       string   `json:"provider,omitempty"`
-	State          string   `json:"state"`
-	Message        string   `json:"message,omitempty"`
-	Age            string   `json:"age,omitempty"`
-	LastTransition string   `json:"lastTransition,omitempty"`
-	LastSeen       string   `json:"lastSeen,omitempty"`
-	SyncStatus     string   `json:"syncStatus,omitempty"`
-	HealthStatus   string   `json:"healthStatus,omitempty"`
-	DriftDetected  bool     `json:"driftDetected,omitempty"`
+	Name           string `json:"name"`
+	Group          string `json:"group,omitempty"`
+	Version        string `json:"version"`
+	Kind           string `json:"kind"`
+	Namespace      string `json:"namespace,omitempty"`
+	ResourceName   string `json:"resourceName"`
+	TenantRef      string `json:"tenantRef,omitempty"`
+	Category       string `json:"category,omitempty"`
+	Provider       string `json:"provider,omitempty"`
+	State          string `json:"state"`
+	Message        string `json:"message,omitempty"`
+	Age            string `json:"age,omitempty"`
+	LastTransition string `json:"lastTransition,omitempty"`
+	LastSeen       string `json:"lastSeen,omitempty"`
+	SyncStatus     string `json:"syncStatus,omitempty"`
+	HealthStatus   string `json:"healthStatus,omitempty"`
+	DriftDetected  bool   `json:"driftDetected,omitempty"`
 }
 
 // resourceSummaryToResponse converts a ResourceSummary to API response

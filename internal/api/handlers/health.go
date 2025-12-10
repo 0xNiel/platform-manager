@@ -54,18 +54,18 @@ func NewHealthHandler(c client.Client) *HealthHandler {
 
 // PlatformHealthResponse is the API response for platform health
 type PlatformHealthResponse struct {
-	OverallHealth       string                            `json:"overallHealth"`
-	TotalTenants        int                               `json:"totalTenants"`
-	HealthyTenants      int                               `json:"healthyTenants"`
-	DegradedTenants     int                               `json:"degradedTenants"`
-	CriticalTenants     int                               `json:"criticalTenants"`
-	CrossplaneResources ResourceStateCountsResponse       `json:"crossplaneResources"`
-	KubernetesResources ResourceStateCountsResponse       `json:"kubernetesResources"`
-	TotalIAMDrift       int                               `json:"totalIamDrift"`
-	ArgoSummary         ArgoSummaryResponse               `json:"argoSummary"`
-	Tenants             []TenantHealthSummaryResponse     `json:"tenants"`
-	TopIssues           []IssueResponse                   `json:"topIssues"`
-	LastUpdated         string                            `json:"lastUpdated,omitempty"`
+	OverallHealth       string                        `json:"overallHealth"`
+	TotalTenants        int                           `json:"totalTenants"`
+	HealthyTenants      int                           `json:"healthyTenants"`
+	DegradedTenants     int                           `json:"degradedTenants"`
+	CriticalTenants     int                           `json:"criticalTenants"`
+	CrossplaneResources ResourceStateCountsResponse   `json:"crossplaneResources"`
+	KubernetesResources ResourceStateCountsResponse   `json:"kubernetesResources"`
+	TotalIAMDrift       int                           `json:"totalIamDrift"`
+	ArgoSummary         ArgoSummaryResponse           `json:"argoSummary"`
+	Tenants             []TenantHealthSummaryResponse `json:"tenants"`
+	TopIssues           []IssueResponse               `json:"topIssues"`
+	LastUpdated         string                        `json:"lastUpdated,omitempty"`
 }
 
 // ResourceStateCountsResponse represents resource state counts in API response
@@ -180,10 +180,10 @@ func (h *HealthHandler) aggregatePlatformHealth(ctx context.Context) *PlatformHe
 	}
 
 	response := &PlatformHealthResponse{
-		OverallHealth:  string(platformv1alpha1.HealthLevelHealthy),
-		TotalTenants:   len(tenantHealthList.Items),
-		Tenants:        make([]TenantHealthSummaryResponse, 0),
-		TopIssues:      make([]IssueResponse, 0),
+		OverallHealth: string(platformv1alpha1.HealthLevelHealthy),
+		TotalTenants:  len(tenantHealthList.Items),
+		Tenants:       make([]TenantHealthSummaryResponse, 0),
+		TopIssues:     make([]IssueResponse, 0),
 	}
 
 	for _, th := range tenantHealthList.Items {
