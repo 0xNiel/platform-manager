@@ -11,8 +11,8 @@
 3. [Technology Stack](#technology-stack)
 4. [Project Structure](#project-structure)
 5. [Phase 0: Development Environment & Test Infrastructure](#phase-0-development-environment--test-infrastructure) ✅ **COMPLETE**
-6. [Phase 1: Backend Skeleton & Global Overview](#phase-1-backend-skeleton--global-overview) ⏳ **NEXT**
-7. [Phase 2: Drill-down & Resource Detail](#phase-2-drill-down--resource-detail)
+6. [Phase 1: Backend Skeleton & Global Overview](#phase-1-backend-skeleton--global-overview) ✅ **COMPLETE**
+7. [Phase 2: Drill-down & Resource Detail](#phase-2-drill-down--resource-detail) ⏳ **NEXT**
 8. [Phase 3: Actions (Mini Argo + Crossplane Controls)](#phase-3-actions-mini-argo--crossplane-controls)
 9. [Phase 4: IAM Drift Module](#phase-4-iam-drift-module)
 10. [Phase 5: Troubleshooting & Rule Engine](#phase-5-troubleshooting--rule-engine)
