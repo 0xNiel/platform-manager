@@ -1,0 +1,335 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: platformhealths.platform.platform.io
+spec:
+  group: platform.platform.io
+  names:
+    kind: PlatformHealth
+    listKind: PlatformHealthList
+    plural: platformhealths
+    singular: platformhealth
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.overallHealth
+      name: Health
+      type: string
+    - jsonPath: .status.totalTenants
+      name: Tenants
+      type: integer
+    - jsonPath: .status.healthyTenants
+      name: Healthy
+      type: integer
+    - jsonPath: .status.criticalTenants
+      name: Critical
+      type: integer
+    - jsonPath: .status.totalIamDrift
+      name: IAM Drift
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PlatformHealth is the Schema for the platformhealths API (singleton)
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PlatformHealthSpec defines the desired state of PlatformHealth
+            properties:
+              name:
+                default: default
+                description: Name is the name of this platform health instance (usually
+                  "default")
+                minLength: 1
+                type: string
+            type: object
+          status:
+            description: PlatformHealthStatus defines the observed state of PlatformHealth
+            properties:
+              activeAlerts:
+                description: ActiveAlerts is the total count of active alerts across
+                  all tenants
+                type: integer
+              argoSummary:
+                description: ArgoSummary shows aggregated ArgoCD application states
+                properties:
+                  degraded:
+                    description: Degraded is the count of degraded applications
+                    type: integer
+                  healthy:
+                    description: Healthy is the count of healthy applications
+                    type: integer
+                  missing:
+                    description: Missing is the count of applications with missing
+                      resources
+                    type: integer
+                  outOfSync:
+                    description: OutOfSync is the count of applications that are out
+                      of sync
+                    type: integer
+                  progressing:
+                    description: Progressing is the count of applications currently
+                      syncing
+                    type: integer
+                  suspended:
+                    description: Suspended is the count of suspended applications
+                    type: integer
+                  synced:
+                    description: Synced is the count of applications in Synced state
+                    type: integer
+                  totalApps:
+                    description: TotalApps is the total number of ArgoCD applications
+                    type: integer
+                required:
+                - degraded
+                - healthy
+                - missing
+                - outOfSync
+                - progressing
+                - suspended
+                - synced
+                - totalApps
+                type: object
+              criticalTenants:
+                description: CriticalTenants is the count of tenants with critical
+                  issues
+                type: integer
+              crossplaneResources:
+                description: CrossplaneResources shows aggregated state counts for
+                  all Crossplane resources
+                properties:
+                  failed:
+                    description: Failed is the count of resources in Failed state
+                    type: integer
+                  paused:
+                    description: Paused is the count of resources that are paused
+                    type: integer
+                  ready:
+                    description: Ready is the count of resources in Ready state
+                    type: integer
+                  total:
+                    description: Total is the total count of resources
+                    type: integer
+                  unknown:
+                    description: Unknown is the count of resources in Unknown state
+                    type: integer
+                  waiting:
+                    description: Waiting is the count of resources in Waiting/Pending
+                      state
+                    type: integer
+                required:
+                - failed
+                - paused
+                - ready
+                - total
+                - unknown
+                - waiting
+                type: object
+              degradedTenants:
+                description: DegradedTenants is the count of degraded tenants
+                type: integer
+              healthyTenants:
+                description: HealthyTenants is the count of healthy tenants
+                type: integer
+              kubernetesResources:
+                description: KubernetesResources shows aggregated state counts for
+                  Kubernetes resources
+                properties:
+                  failed:
+                    description: Failed is the count of resources in Failed state
+                    type: integer
+                  paused:
+                    description: Paused is the count of resources that are paused
+                    type: integer
+                  ready:
+                    description: Ready is the count of resources in Ready state
+                    type: integer
+                  total:
+                    description: Total is the total count of resources
+                    type: integer
+                  unknown:
+                    description: Unknown is the count of resources in Unknown state
+                    type: integer
+                  waiting:
+                    description: Waiting is the count of resources in Waiting/Pending
+                      state
+                    type: integer
+                required:
+                - failed
+                - paused
+                - ready
+                - total
+                - unknown
+                - waiting
+                type: object
+              lastUpdated:
+                description: LastUpdated is when this status was last updated
+                format: date-time
+                type: string
+              overallHealth:
+                description: OverallHealth indicates the global platform health level
+                type: string
+              providers:
+                description: Providers shows the health of Crossplane providers
+                items:
+                  description: ProviderHealthSummary summarizes the health of a Crossplane
+                    provider
+                  properties:
+                    healthy:
+                      description: Healthy indicates if the provider is healthy
+                      type: boolean
+                    installedRevision:
+                      description: InstalledRevision is the current revision
+                      type: string
+                    message:
+                      description: Message provides details about the provider status
+                      type: string
+                    name:
+                      description: Name is the name of the provider
+                      type: string
+                    package:
+                      description: Package is the provider package reference
+                      type: string
+                    version:
+                      description: Version is the installed version
+                      type: string
+                  required:
+                  - healthy
+                  - name
+                  - package
+                  type: object
+                type: array
+              tenants:
+                description: Tenants provides a summary of each tenant's health
+                items:
+                  description: TenantHealthSummary summarizes a tenant's health for
+                    the global view
+                  properties:
+                    argoOutOfSync:
+                      description: ArgoOutOfSync is the count of ArgoCD apps out of
+                        sync
+                      type: integer
+                    displayName:
+                      description: DisplayName is the human-readable name
+                      type: string
+                    failedResources:
+                      description: FailedResources is the count of failed resources
+                      type: integer
+                    health:
+                      description: Health is the overall health level
+                      type: string
+                    iamDriftCount:
+                      description: IAMDriftCount is the count of resources with IAM
+                        drift
+                      type: integer
+                    name:
+                      description: Name is the tenant name
+                      type: string
+                    totalResources:
+                      description: TotalResources is the total resource count
+                      type: integer
+                  required:
+                  - argoOutOfSync
+                  - displayName
+                  - failedResources
+                  - health
+                  - iamDriftCount
+                  - name
+                  - totalResources
+                  type: object
+                type: array
+              topIssues:
+                description: TopIssues contains the top issues across all tenants
+                  (max 10)
+                items:
+                  description: Issue represents a detected issue for the tenant
+                  properties:
+                    message:
+                      description: Message describing the issue
+                      type: string
+                    resourceRef:
+                      description: ResourceRef is a reference to the affected resource
+                      type: string
+                    ruleId:
+                      description: RuleID is the identifier of the rule that detected
+                        this issue
+                      type: string
+                    severity:
+                      description: Severity of the issue (critical, warning, info)
+                      type: string
+                    timestamp:
+                      description: Timestamp when the issue was detected
+                      format: date-time
+                      type: string
+                  required:
+                  - message
+                  - severity
+                  - timestamp
+                  type: object
+                type: array
+              totalCpuRequest:
+                anyOf:
+                - type: integer
+                - type: string
+                description: TotalCPURequest is the total CPU requested across all
+                  tenants
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              totalCpuUsage:
+                anyOf:
+                - type: integer
+                - type: string
+                description: TotalCPUUsage is the total CPU usage across all tenants
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              totalIamDrift:
+                description: TotalIAMDrift is the total count of resources with IAM
+                  drift
+                type: integer
+              totalMemoryRequest:
+                anyOf:
+                - type: integer
+                - type: string
+                description: TotalMemoryRequest is the total memory requested across
+                  all tenants
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              totalMemoryUsage:
+                anyOf:
+                - type: integer
+                - type: string
+                description: TotalMemoryUsage is the total memory usage across all
+                  tenants
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              totalTenants:
+                description: TotalTenants is the total number of tenants
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

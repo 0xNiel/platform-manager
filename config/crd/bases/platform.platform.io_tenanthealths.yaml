@@ -1,0 +1,286 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: tenanthealths.platform.platform.io
+spec:
+  group: platform.platform.io
+  names:
+    kind: TenantHealth
+    listKind: TenantHealthList
+    plural: tenanthealths
+    singular: tenanthealth
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.tenantRef
+      name: Tenant
+      type: string
+    - jsonPath: .status.overallHealth
+      name: Health
+      type: string
+    - jsonPath: .status.crossplaneResources.failed
+      name: Failed
+      type: integer
+    - jsonPath: .status.iamDrift.rolesWithDrift
+      name: IAM Drift
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: TenantHealth is the Schema for the tenanthealth API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TenantHealthSpec defines the desired state of TenantHealth
+            properties:
+              tenantRef:
+                description: TenantRef is the name of the Tenant this health summary
+                  is for
+                minLength: 1
+                type: string
+            required:
+            - tenantRef
+            type: object
+          status:
+            description: TenantHealthStatus defines the observed state of TenantHealth
+            properties:
+              activeAlerts:
+                description: ActiveAlerts is the count of currently active alerts
+                type: integer
+              argo:
+                description: Argo summarizes ArgoCD application states
+                properties:
+                  degraded:
+                    description: Degraded is the count of degraded applications
+                    type: integer
+                  healthy:
+                    description: Healthy is the count of healthy applications
+                    type: integer
+                  missing:
+                    description: Missing is the count of applications with missing
+                      resources
+                    type: integer
+                  outOfSync:
+                    description: OutOfSync is the count of applications that are out
+                      of sync
+                    type: integer
+                  progressing:
+                    description: Progressing is the count of applications currently
+                      syncing
+                    type: integer
+                  suspended:
+                    description: Suspended is the count of suspended applications
+                    type: integer
+                  synced:
+                    description: Synced is the count of applications in Synced state
+                    type: integer
+                  totalApps:
+                    description: TotalApps is the total number of ArgoCD applications
+                    type: integer
+                required:
+                - degraded
+                - healthy
+                - missing
+                - outOfSync
+                - progressing
+                - suspended
+                - synced
+                - totalApps
+                type: object
+              cpuRequest:
+                anyOf:
+                - type: integer
+                - type: string
+                description: CPURequest is the total CPU requested across all tenant
+                  namespaces
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              cpuUsage:
+                anyOf:
+                - type: integer
+                - type: string
+                description: CPUUsage is the current CPU usage across all tenant namespaces
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              crossplaneResources:
+                description: CrossplaneResources shows state counts for Crossplane-managed
+                  resources
+                properties:
+                  failed:
+                    description: Failed is the count of resources in Failed state
+                    type: integer
+                  paused:
+                    description: Paused is the count of resources that are paused
+                    type: integer
+                  ready:
+                    description: Ready is the count of resources in Ready state
+                    type: integer
+                  total:
+                    description: Total is the total count of resources
+                    type: integer
+                  unknown:
+                    description: Unknown is the count of resources in Unknown state
+                    type: integer
+                  waiting:
+                    description: Waiting is the count of resources in Waiting/Pending
+                      state
+                    type: integer
+                required:
+                - failed
+                - paused
+                - ready
+                - total
+                - unknown
+                - waiting
+                type: object
+              iamDrift:
+                description: IAMDrift summarizes IAM drift detection results
+                properties:
+                  extraPrivileges:
+                    description: ExtraPrivileges is the count of extra privileges
+                      found in AWS vs spec
+                    type: integer
+                  lastChecked:
+                    description: LastChecked is when drift was last checked
+                    format: date-time
+                    type: string
+                  missingPrivileges:
+                    description: MissingPrivileges is the count of missing privileges
+                      in AWS vs spec
+                    type: integer
+                  policiesWithDrift:
+                    description: PoliciesWithDrift is the number of policies with
+                      detected drift
+                    type: integer
+                  rolesWithDrift:
+                    description: RolesWithDrift is the number of roles with detected
+                      drift
+                    type: integer
+                  totalPolicies:
+                    description: TotalPolicies is the total number of IAM policies
+                      managed by Crossplane
+                    type: integer
+                  totalRoles:
+                    description: TotalRoles is the total number of IAM roles managed
+                      by Crossplane
+                    type: integer
+                required:
+                - extraPrivileges
+                - missingPrivileges
+                - policiesWithDrift
+                - rolesWithDrift
+                - totalPolicies
+                - totalRoles
+                type: object
+              kubernetesResources:
+                description: KubernetesResources shows state counts for Kubernetes
+                  resources (Deployments, Pods, etc.)
+                properties:
+                  failed:
+                    description: Failed is the count of resources in Failed state
+                    type: integer
+                  paused:
+                    description: Paused is the count of resources that are paused
+                    type: integer
+                  ready:
+                    description: Ready is the count of resources in Ready state
+                    type: integer
+                  total:
+                    description: Total is the total count of resources
+                    type: integer
+                  unknown:
+                    description: Unknown is the count of resources in Unknown state
+                    type: integer
+                  waiting:
+                    description: Waiting is the count of resources in Waiting/Pending
+                      state
+                    type: integer
+                required:
+                - failed
+                - paused
+                - ready
+                - total
+                - unknown
+                - waiting
+                type: object
+              lastUpdated:
+                description: LastUpdated is when this health status was last updated
+                format: date-time
+                type: string
+              memoryRequest:
+                anyOf:
+                - type: integer
+                - type: string
+                description: MemoryRequest is the total memory requested across all
+                  tenant namespaces
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              memoryUsage:
+                anyOf:
+                - type: integer
+                - type: string
+                description: MemoryUsage is the current memory usage across all tenant
+                  namespaces
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              overallHealth:
+                description: OverallHealth indicates the overall health level (Healthy,
+                  Degraded, Critical, Unknown)
+                type: string
+              topIssues:
+                description: TopIssues contains the top issues for this tenant (max
+                  10)
+                items:
+                  description: Issue represents a detected issue for the tenant
+                  properties:
+                    message:
+                      description: Message describing the issue
+                      type: string
+                    resourceRef:
+                      description: ResourceRef is a reference to the affected resource
+                      type: string
+                    ruleId:
+                      description: RuleID is the identifier of the rule that detected
+                        this issue
+                      type: string
+                    severity:
+                      description: Severity of the issue (critical, warning, info)
+                      type: string
+                    timestamp:
+                      description: Timestamp when the issue was detected
+                      format: date-time
+                      type: string
+                  required:
+                  - message
+                  - severity
+                  - timestamp
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

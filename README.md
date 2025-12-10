@@ -1,178 +1,135 @@
-# Platform Manager
+# platform-manager
+// TODO(user): Add simple overview of use/purpose
 
-A unified control plane for managing Crossplane, ArgoCD, and AWS IAM resources across a multi-tenant Kubernetes platform.
+## Description
+// TODO(user): An in-depth paragraph about your project and overview of use
 
-## Features
-
-- **Platform Dashboard**: 30,000-foot view of platform health
-- **Tenant Management**: Multi-tenant resource tracking and health aggregation
-- **Crossplane Integration**: Watch and manage Compositions, Claims, XRs, and Providers
-- **ArgoCD Integration**: Sync status, health monitoring, and GitOps operations
-- **IAM Drift Detection**: Track drift between Crossplane and AWS IAM resources
-- **Web Terminal**: Secure, audited kubectl/aws CLI access
-- **Rule-based Troubleshooting**: Automated issue detection and recommendations
-
-## Quick Start
+## Getting Started
 
 ### Prerequisites
+- go version v1.24.0+
+- docker version 17.03+.
+- kubectl version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
 
-Ensure you have the following installed:
+### To Deploy on the cluster
+**Build and push your image to the location specified by `IMG`:**
 
-```bash
-# Required tools
-brew install kind kubectl helm ko argocd awscli
-pip3 install localstack awscli-local
-
-# Optional but recommended
-brew install stern k9s jq
-
-# Frontend development
-brew install node
+```sh
+make docker-build docker-push IMG=<some-registry>/platform-manager:tag
 ```
 
-### Development Environment
+**NOTE:** This image ought to be published in the personal registry you specified.
+And it is required to have access to pull the image from the working environment.
+Make sure you have the proper permission to the registry if the above commands don’t work.
 
-1. **Start LocalStack** (in a separate terminal):
-   ```bash
-   localstack start
-   # OR
-   docker run --rm -p 4566:4566 -p 4510-4559:4510-4559 localstack/localstack
-   ```
+**Install the CRDs into the cluster:**
 
-2. **Create the development environment**:
-   ```bash
-   make dev-up
-   ```
-
-3. **Verify everything is running**:
-   ```bash
-   make dev-status
-   ```
-
-4. **Access ArgoCD UI**:
-   ```bash
-   make argocd-port-forward
-   # Open https://localhost:8080
-   # Username: admin
-   # Password: make argocd-password
-   ```
-
-### Project Structure
-
-```
-platform-manager/
-├── api/v1alpha1/         # CRD definitions
-├── cmd/                  # Main entrypoint
-├── internal/
-│   ├── controller/       # Kubernetes controllers
-│   ├── api/              # HTTP API handlers
-│   ├── iam/              # IAM drift detection
-│   ├── health/           # Health aggregation
-│   ├── rules/            # Troubleshooting rules
-│   ├── terminal/         # Web terminal
-│   └── metrics/          # Prometheus integration
-├── config/               # Kubebuilder manifests
-├── hack/                 # Development scripts
-│   ├── kind-config.yaml
-│   ├── crossplane/
-│   └── seed-tenants/
-├── web/                  # Vue 3 frontend (single-spa MFE)
-└── test/                 # Tests
+```sh
+make install
 ```
 
-## Development
+**Deploy the Manager to the cluster with the image specified by `IMG`:**
 
-### Backend
-
-```bash
-# Run controller locally
-make run
-
-# Run tests
-make test
-
-# Generate CRDs
-make manifests
-
-# Build Docker image
-make docker-build
+```sh
+make deploy IMG=<some-registry>/platform-manager:tag
 ```
 
-### Frontend
+> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
+privileges or be logged in as admin.
 
-```bash
-# Install dependencies
-make web-install
+**Create instances of your solution**
+You can apply the samples (examples) from the config/sample:
 
-# Run dev server
-make web-dev
-
-# Build for production
-make web-build
-
-# Build as single-spa MFE
-make web-build-mfe
+```sh
+kubectl apply -k config/samples/
 ```
 
-### Testing with LocalStack
+>**NOTE**: Ensure that the samples has default values to test it out.
 
-```bash
-# Check LocalStack health
-make localstack-health
+### To Uninstall
+**Delete the instances (CRs) from the cluster:**
 
-# Create IAM drift for testing
-make localstack-create-drift
-
-# List IAM resources
-make localstack-list-iam
+```sh
+kubectl delete -k config/samples/
 ```
 
-## Architecture
+**Delete the APIs(CRDs) from the cluster:**
 
-### Backend
-
-- **Go 1.22+** with Kubebuilder v4
-- Controller-runtime for Kubernetes operations
-- Chi/Echo for HTTP API
-- aws-sdk-go-v2 for AWS operations
-- gorilla/websocket for terminal
-
-### Frontend
-
-- **Vue 3** with TypeScript
-- **single-spa** for MFE integration
-- Pinia for state management
-- xterm.js for terminal
-
-### Crossplane Providers Watched
-
-- AWS family (IAM, S3, Lambda, etc.)
-- Custom KnowledgeBases
-- Ansible, ArgoCD, Grafana, Helm, Kubernetes, OpenTofu, Terraform, Vault
-
-## Deployment
-
-### Kind (Development)
-
-```bash
-make deploy-dev
+```sh
+make uninstall
 ```
 
-### Production (amd64)
+**UnDeploy the controller from the cluster:**
 
-```bash
-make docker-build-prod
+```sh
+make undeploy
 ```
 
-## Configuration
+## Project Distribution
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `PROMETHEUS_URL` | Prometheus endpoint | `http://prometheus:9090` |
-| `AWS_REGION` | AWS region | `us-east-1` |
-| `LOG_LEVEL` | Logging level | `info` |
+Following the options to release and provide this solution to the users.
+
+### By providing a bundle with all YAML files
+
+1. Build the installer for the image built and published in the registry:
+
+```sh
+make build-installer IMG=<some-registry>/platform-manager:tag
+```
+
+**NOTE:** The makefile target mentioned above generates an 'install.yaml'
+file in the dist directory. This file contains all the resources built
+with Kustomize, which are necessary to install this project without its
+dependencies.
+
+2. Using the installer
+
+Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
+the project, i.e.:
+
+```sh
+kubectl apply -f https://raw.githubusercontent.com/<org>/platform-manager/<tag or branch>/dist/install.yaml
+```
+
+### By providing a Helm Chart
+
+1. Build the chart using the optional helm plugin
+
+```sh
+kubebuilder edit --plugins=helm/v1-alpha
+```
+
+2. See that a chart was generated under 'dist/chart', and users
+can obtain this solution from there.
+
+**NOTE:** If you change the project, you need to update the Helm Chart
+using the same command above to sync the latest changes. Furthermore,
+if you create webhooks, you need to use the above command with
+the '--force' flag and manually ensure that any custom configuration
+previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
+is manually re-applied afterwards.
+
+## Contributing
+// TODO(user): Add detailed information on how you would like others to contribute to this project
+
+**NOTE:** Run `make help` for more information on all potential `make` targets
+
+More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
 
-Apache 2.0
+Copyright 2025.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 

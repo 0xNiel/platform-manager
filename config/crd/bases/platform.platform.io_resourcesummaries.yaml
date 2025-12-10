@@ -1,0 +1,190 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: resourcesummaries.platform.platform.io
+spec:
+  group: platform.platform.io
+  names:
+    kind: ResourceSummary
+    listKind: ResourceSummaryList
+    plural: resourcesummaries
+    singular: resourcesummary
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.kind
+      name: Kind
+      type: string
+    - jsonPath: .spec.namespace
+      name: Namespace
+      type: string
+    - jsonPath: .spec.name
+      name: Name
+      type: string
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .spec.tenantRef
+      name: Tenant
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ResourceSummary is the Schema for the resourcesummaries API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ResourceSummarySpec captures the resource reference
+            properties:
+              category:
+                description: Category classifies the resource (Crossplane, Kubernetes,
+                  ArgoCD, IAM)
+                type: string
+              group:
+                description: Group is the API group of the resource
+                type: string
+              kind:
+                description: Kind is the kind of the resource
+                type: string
+              name:
+                description: Name is the name of the resource
+                type: string
+              namespace:
+                description: Namespace is the namespace of the resource (empty for
+                  cluster-scoped)
+                type: string
+              provider:
+                description: Provider is the Crossplane provider for this resource
+                  (if applicable)
+                type: string
+              tenantRef:
+                description: TenantRef links to the owning tenant
+                type: string
+              version:
+                description: Version is the API version of the resource
+                type: string
+            required:
+            - kind
+            - name
+            - version
+            type: object
+          status:
+            description: ResourceSummaryStatus captures normalized health
+            properties:
+              age:
+                description: Age is how long the resource has existed
+                type: string
+              claimRef:
+                description: ClaimRef is the claim that created this resource (for
+                  XRs)
+                type: string
+              compositionRef:
+                description: CompositionRef is the composition this resource belongs
+                  to (for XRs)
+                type: string
+              conditions:
+                description: Conditions from the source resource (condensed)
+                items:
+                  description: ConditionSummary is a condensed view of a condition
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is when the condition last changed
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message providing details about the condition
+                      type: string
+                    reason:
+                      description: Reason for the condition
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown)
+                      type: string
+                    type:
+                      description: Type of the condition
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              driftDetected:
+                description: DriftDetected indicates if drift was detected (for IAM
+                  resources)
+                type: boolean
+              healthStatus:
+                description: HealthStatus for ArgoCD resources
+                type: string
+              lastSeen:
+                description: LastSeen is when resource was last observed
+                format: date-time
+                type: string
+              lastTransition:
+                description: LastTransition is when state last changed
+                format: date-time
+                type: string
+              message:
+                description: Message explaining current state
+                type: string
+              ownerChain:
+                description: OwnerChain for traversing resource tree (from child to
+                  root)
+                items:
+                  description: OwnerRef represents a reference to an owner resource
+                  properties:
+                    apiVersion:
+                      description: APIVersion of the owner
+                      type: string
+                    kind:
+                      description: Kind of the owner
+                      type: string
+                    name:
+                      description: Name of the owner
+                      type: string
+                    namespace:
+                      description: Namespace of the owner (empty for cluster-scoped)
+                      type: string
+                    uid:
+                      description: UID of the owner
+                      type: string
+                  required:
+                  - apiVersion
+                  - kind
+                  - name
+                  type: object
+                type: array
+              state:
+                description: State is the normalized state (Ready, Failed, Waiting,
+                  Unknown, Paused)
+                type: string
+              syncStatus:
+                description: SyncStatus for ArgoCD resources
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

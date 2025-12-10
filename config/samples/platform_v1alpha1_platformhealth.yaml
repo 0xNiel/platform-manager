@@ -1,0 +1,9 @@
+apiVersion: platform.platform.io/v1alpha1
+kind: PlatformHealth
+metadata:
+  labels:
+    app.kubernetes.io/name: platform-manager
+    app.kubernetes.io/managed-by: kustomize
+  name: platformhealth-sample
+spec:
+  # TODO(user): Add fields here

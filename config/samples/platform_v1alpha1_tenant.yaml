@@ -1,0 +1,57 @@
+---
+apiVersion: platform.platform.io/v1alpha1
+kind: Tenant
+metadata:
+  name: alpha
+spec:
+  displayName: "Tenant Alpha"
+  description: "ML workloads and training pipelines"
+  namespaces:
+    - tenant-alpha
+  labelSelector:
+    matchLabels:
+      platform.io/tenant: alpha
+  argoProjects:
+    - tenant-alpha
+  environment: dev
+  contacts:
+    - name: "Alice Smith"
+      email: "alice@example.com"
+      role: owner
+    - name: "Bob Johnson"
+      email: "bob@example.com"
+      role: developer
+---
+apiVersion: platform.platform.io/v1alpha1
+kind: Tenant
+metadata:
+  name: beta
+spec:
+  displayName: "Tenant Beta"
+  description: "Data pipeline workloads"
+  namespaces:
+    - tenant-beta
+  labelSelector:
+    matchLabels:
+      platform.io/tenant: beta
+  argoProjects:
+    - tenant-beta
+  environment: dev
+  contacts:
+    - name: "Carol Williams"
+      email: "carol@example.com"
+      role: owner
+---
+apiVersion: platform.platform.io/v1alpha1
+kind: Tenant
+metadata:
+  name: gamma
+spec:
+  displayName: "Tenant Gamma"
+  description: "API services"
+  namespaces:
+    - tenant-gamma
+  labelSelector:
+    matchLabels:
+      platform.io/tenant: gamma
+  environment: dev
