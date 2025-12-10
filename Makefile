@@ -252,16 +252,16 @@ CROSSPLANE_VERSION ?= 1.20.0
 
 .PHONY: dev-up
 dev-up: kind-create install-argocd install-crossplane setup-localstack-provider seed-tenants ## Create full dev environment
-	@echo "✅ Development environment ready!"
+	@echo "[OK] Development environment ready!"
 	@echo ""
-	@echo "📋 Quick Reference:"
+	@echo "[INFO] Quick Reference:"
 	@echo "   ArgoCD UI: https://localhost:9080 (or use: make argocd-port-forward)"
 	@echo "   ArgoCD Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
 	@echo "   Platform API: http://localhost:9081"
 	@echo "   Frontend Dev: http://localhost:9082"
 	@echo "   LocalStack: $(LOCALSTACK_ENDPOINT)"
 	@echo ""
-	@echo "🔧 Useful commands:"
+	@echo "[TIP] Useful commands:"
 	@echo "   make argocd-port-forward  # Access ArgoCD UI on localhost:8443"
 	@echo "   make localstack-health    # Check LocalStack"
 	@echo "   kubectl get providers     # Check Crossplane providers"
@@ -269,7 +269,7 @@ dev-up: kind-create install-argocd install-crossplane setup-localstack-provider 
 .PHONY: dev-down
 dev-down: ## Tear down dev environment
 	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
-	@echo "✅ Development environment deleted"
+	@echo "[OK] Development environment deleted"
 
 .PHONY: dev-reset
 dev-reset: dev-down dev-up ## Reset dev environment
@@ -306,7 +306,7 @@ install-argocd: ## Install ArgoCD
 	$(KUBECTL) apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 	@echo "Waiting for ArgoCD to be ready..."
 	$(KUBECTL) wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
-	@echo "✅ ArgoCD installed"
+	@echo "[OK] ArgoCD installed"
 	@echo "   Get password: make argocd-password"
 	@echo "   Port forward: make argocd-port-forward"
 
@@ -337,7 +337,7 @@ install-crossplane: ## Install Crossplane with AWS Provider
 	@echo "Waiting for AWS Provider to initialize (this may take 1-2 minutes)..."
 	@sleep 15
 	$(KUBECTL) wait --for=condition=healthy --timeout=300s provider.pkg.crossplane.io/provider-aws-iam || echo "Provider still initializing, continuing..."
-	@echo "✅ Crossplane v$(CROSSPLANE_VERSION) with AWS Provider installed"
+	@echo "[OK] Crossplane v$(CROSSPLANE_VERSION) with AWS Provider installed"
 
 .PHONY: setup-localstack-provider
 setup-localstack-provider: ## Configure Crossplane to use LocalStack
@@ -345,7 +345,7 @@ setup-localstack-provider: ## Configure Crossplane to use LocalStack
 	@sleep 10
 	@echo "Creating LocalStack ProviderConfig..."
 	$(KUBECTL) apply -f hack/crossplane/providerconfig-localstack.yaml
-	@echo "✅ LocalStack ProviderConfig created"
+	@echo "[OK] LocalStack ProviderConfig created"
 
 ##@ LocalStack
 
@@ -382,7 +382,7 @@ localstack-create-drift: ## Create IAM drift in LocalStack for testing
 	awslocal iam create-role \
 		--role-name orphaned-manual-role \
 		--assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' 2>/dev/null || echo "Role may already exist"
-	@echo "✅ Drift test resources created"
+	@echo "[OK] Drift test resources created"
 	@echo ""
 	@echo "To verify:"
 	@echo "  awslocal iam list-roles"
@@ -400,32 +400,32 @@ seed-tenants: ## Create fake tenants and resources for testing
 	@sleep 5
 	$(KUBECTL) apply -f hack/seed-tenants/iam-resources.yaml || echo "IAM CRDs not ready yet, try 'make seed-iam' later"
 	$(KUBECTL) apply -f hack/seed-tenants/argo-apps.yaml
-	@echo "✅ Test tenants seeded"
+	@echo "[OK] Test tenants seeded"
 
 .PHONY: seed-iam
 seed-iam: ## Apply IAM resources (after Crossplane CRDs are ready)
 	$(KUBECTL) apply -f hack/seed-tenants/iam-resources.yaml
-	@echo "✅ IAM resources created"
+	@echo "[OK] IAM resources created"
 
 .PHONY: seed-platform-tenants
 seed-platform-tenants: ## Create Platform Manager Tenant CRDs
 	$(KUBECTL) apply -f config/samples/platform_v1alpha1_tenant.yaml
-	@echo "✅ Platform Tenant CRDs created"
+	@echo "[OK] Platform Tenant CRDs created"
 
 .PHONY: seed-failed-resources
 seed-failed-resources: ## Create resources in failed/waiting states for testing
 	$(KUBECTL) apply -f hack/seed-tenants/failed-resources.yaml
-	@echo "✅ Failed resources seeded"
+	@echo "[OK] Failed resources seeded"
 
 .PHONY: seed-paused-resources
 seed-paused-resources: ## Pause some Crossplane resources for testing
 	$(KUBECTL) annotate --overwrite roles.iam.aws.upbound.io/tenant-alpha-lambda-role crossplane.io/paused="true" || echo "Resource not found"
-	@echo "✅ Resources paused"
+	@echo "[OK] Resources paused"
 
 .PHONY: clear-tenants
 clear-tenants: ## Remove test tenant resources
 	$(KUBECTL) delete -f hack/seed-tenants/ --ignore-not-found
-	@echo "✅ Test tenants cleared"
+	@echo "[OK] Test tenants cleared"
 
 ##@ Frontend
 
