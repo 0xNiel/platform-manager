@@ -35,9 +35,15 @@ module.exports = defineConfig({
 
   // Dev server config
   devServer: {
-    port: 3000,
+    port: 9082,
     headers: {
       'Access-Control-Allow-Origin': '*',
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:9080',
+        changeOrigin: true,
+      },
     },
   },
 

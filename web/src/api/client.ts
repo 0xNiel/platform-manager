@@ -1,10 +1,10 @@
 // web/src/api/client.ts
 // API client for Platform Manager backend
-import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
+import axios, { type AxiosInstance } from 'axios'
 
 // Create axios instance with defaults
 const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
+  baseURL: process.env.VUE_APP_API_URL || 'http://localhost:9080/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

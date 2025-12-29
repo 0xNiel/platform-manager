@@ -1,0 +1,69 @@
+# Sample Tenant Custom Resources
+---
+apiVersion: platform.platform.io/v1alpha1
+kind: Tenant
+metadata:
+  name: tenant-alpha
+  labels:
+    platform.io/tenant: alpha
+    platform.io/environment: dev
+spec:
+  displayName: "Alpha - ML Platform"
+  namespaces:
+    - tenant-alpha
+  labelSelector:
+    matchLabels:
+      platform.io/tenant: alpha
+  argoProjects:
+    - tenant-alpha
+  contacts:
+    - name: "Alpha Team Lead"
+      email: "alpha-lead@example.com"
+      role: "owner"
+    - name: "ML Engineer"
+      email: "ml-engineer@example.com"
+      role: "developer"
+---
+apiVersion: platform.platform.io/v1alpha1
+kind: Tenant
+metadata:
+  name: tenant-beta
+  labels:
+    platform.io/tenant: beta
+    platform.io/environment: dev
+spec:
+  displayName: "Beta - Data Pipeline"
+  namespaces:
+    - tenant-beta
+  labelSelector:
+    matchLabels:
+      platform.io/tenant: beta
+  argoProjects:
+    - tenant-beta
+  contacts:
+    - name: "Beta Team Lead"
+      email: "beta-lead@example.com"
+      role: "owner"
+    - name: "Data Engineer"
+      email: "data-engineer@example.com"
+      role: "developer"
+---
+apiVersion: platform.platform.io/v1alpha1
+kind: Tenant
+metadata:
+  name: tenant-gamma
+  labels:
+    platform.io/tenant: gamma
+    platform.io/environment: dev
+spec:
+  displayName: "Gamma - Infrastructure"
+  namespaces:
+    - tenant-gamma
+  labelSelector:
+    matchLabels:
+      platform.io/tenant: gamma
+  contacts:
+    - name: "Gamma Team Lead"
+      email: "gamma-lead@example.com"
+      role: "owner"
+
