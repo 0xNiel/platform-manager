@@ -113,6 +113,10 @@ func (s *Server) setupRouter() *chi.Mux {
 		tenantHandler := handlers.NewTenantHandler(s.client)
 		resourcesHandler := handlers.NewResourcesHandler(s.client)
 		metricsHandler := handlers.NewMetricsHandler(s.client, s.prometheusClient)
+		
+		// Create audit logger and actions handler
+		auditLogger := middleware.NewDefaultAuditLogger()
+		actionsHandler := handlers.NewActionsHandler(s.client, auditLogger)
 
 		// Health endpoints
 		r.Route("/health", func(r chi.Router) {
@@ -140,6 +144,31 @@ func (s *Server) setupRouter() *chi.Mux {
 			r.Get("/namespaces/{namespace}", metricsHandler.GetNamespaceMetrics)
 			r.Get("/tenants/{id}", metricsHandler.GetTenantMetrics)
 			r.Get("/pods/{namespace}/{podName}", metricsHandler.GetPodMetrics)
+		})
+
+		// Action endpoints (mutating operations with authorization)
+		r.Route("/actions", func(r chi.Router) {
+			// ArgoCD actions
+			r.Route("/argo", func(r chi.Router) {
+				r.With(middleware.RequireCapability(middleware.CapSyncArgo)).
+					Post("/sync", actionsHandler.SyncArgoApp)
+				r.With(middleware.RequireCapability(middleware.CapRefreshArgo)).
+					Post("/refresh", actionsHandler.RefreshArgoApp)
+			})
+
+			// Crossplane actions
+			r.Route("/crossplane", func(r chi.Router) {
+				r.With(middleware.RequireCapability(middleware.CapPauseCrossplane)).
+					Post("/pause", actionsHandler.PauseCrossplaneResource)
+				r.With(middleware.RequireCapability(middleware.CapPauseCrossplane)).
+					Post("/unpause", actionsHandler.UnpauseCrossplaneResource)
+				r.With(middleware.RequireCapability(middleware.CapReconcileCrossplane)).
+					Post("/reconcile", actionsHandler.ReconcileCrossplaneResource)
+			})
+
+			// Delete action (requires admin)
+			r.With(middleware.RequireCapability(middleware.CapDeleteResource)).
+				Delete("/resources", actionsHandler.DeleteResource)
 		})
 	})
 

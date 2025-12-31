@@ -143,21 +143,21 @@ func (h *HealthHandler) GetPlatformHealth(w http.ResponseWriter, r *http.Request
 	// Try to get the PlatformHealth singleton
 	platformHealthList := &platformv1alpha1.PlatformHealthList{}
 	if err := h.client.List(ctx, platformHealthList); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to fetch platform health")
+		WriteError(w, http.StatusInternalServerError, "Failed to fetch platform health")
 		return
 	}
 
 	// If no PlatformHealth exists, aggregate from TenantHealth resources
 	if len(platformHealthList.Items) == 0 {
 		response := h.aggregatePlatformHealth(ctx)
-		writeJSON(w, http.StatusOK, response)
+		WriteJSON(w, http.StatusOK, response)
 		return
 	}
 
 	// Use the first (should be singleton) PlatformHealth
 	ph := platformHealthList.Items[0]
 	response := h.platformHealthToResponse(&ph)
-	writeJSON(w, http.StatusOK, response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // aggregatePlatformHealth creates a platform health response by aggregating tenant health
@@ -324,7 +324,7 @@ func (h *HealthHandler) ListTenantHealth(w http.ResponseWriter, r *http.Request)
 
 	tenantHealthList := &platformv1alpha1.TenantHealthList{}
 	if err := h.client.List(ctx, tenantHealthList); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list tenant health")
+		WriteError(w, http.StatusInternalServerError, "Failed to list tenant health")
 		return
 	}
 
@@ -333,7 +333,7 @@ func (h *HealthHandler) ListTenantHealth(w http.ResponseWriter, r *http.Request)
 		responses = append(responses, h.tenantHealthToResponse(&th))
 	}
 
-	writeJSON(w, http.StatusOK, responses)
+	WriteJSON(w, http.StatusOK, responses)
 }
 
 // GetTenantHealth returns health for a specific tenant
@@ -344,19 +344,19 @@ func (h *HealthHandler) GetTenantHealth(w http.ResponseWriter, r *http.Request) 
 	// Look for TenantHealth by tenant reference
 	tenantHealthList := &platformv1alpha1.TenantHealthList{}
 	if err := h.client.List(ctx, tenantHealthList); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to fetch tenant health")
+		WriteError(w, http.StatusInternalServerError, "Failed to fetch tenant health")
 		return
 	}
 
 	for _, th := range tenantHealthList.Items {
 		if th.Spec.TenantRef == tenantID || th.Name == tenantID || th.Name == tenantID+"-health" {
 			response := h.tenantHealthToResponse(&th)
-			writeJSON(w, http.StatusOK, response)
+			WriteJSON(w, http.StatusOK, response)
 			return
 		}
 	}
 
-	writeError(w, http.StatusNotFound, "Tenant health not found")
+	WriteError(w, http.StatusNotFound, "Tenant health not found")
 }
 
 // tenantHealthToResponse converts a TenantHealth to API response

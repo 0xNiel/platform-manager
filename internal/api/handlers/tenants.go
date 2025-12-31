@@ -17,7 +17,6 @@ limitations under the License.
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -68,7 +67,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	tenantList := &platformv1alpha1.TenantList{}
 	if err := h.client.List(ctx, tenantList); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list tenants")
+		WriteError(w, http.StatusInternalServerError, "Failed to list tenants")
 		return
 	}
 
@@ -77,7 +76,7 @@ func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, h.tenantToResponse(&tenant))
 	}
 
-	writeJSON(w, http.StatusOK, responses)
+	WriteJSON(w, http.StatusOK, responses)
 }
 
 // Get returns a specific tenant
@@ -87,12 +86,12 @@ func (h *TenantHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	tenant := &platformv1alpha1.Tenant{}
 	if err := h.client.Get(ctx, client.ObjectKey{Name: tenantID}, tenant); err != nil {
-		writeError(w, http.StatusNotFound, "Tenant not found")
+		WriteError(w, http.StatusNotFound, "Tenant not found")
 		return
 	}
 
 	response := h.tenantToResponse(tenant)
-	writeJSON(w, http.StatusOK, response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // ListResources returns resources for a specific tenant
@@ -108,7 +107,7 @@ func (h *TenantHandler) ListResources(w http.ResponseWriter, r *http.Request) {
 	// Get ResourceSummary objects for this tenant
 	resourceList := &platformv1alpha1.ResourceSummaryList{}
 	if err := h.client.List(ctx, resourceList); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list resources")
+		WriteError(w, http.StatusInternalServerError, "Failed to list resources")
 		return
 	}
 
@@ -133,7 +132,7 @@ func (h *TenantHandler) ListResources(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, resourceSummaryToResponse(&rs))
 	}
 
-	writeJSON(w, http.StatusOK, responses)
+	WriteJSON(w, http.StatusOK, responses)
 }
 
 // ResourceSummaryResponse is the API response for a resource summary
@@ -223,18 +222,4 @@ func (h *TenantHandler) tenantToResponse(tenant *platformv1alpha1.Tenant) Tenant
 	}
 
 	return response
-}
-
-// writeJSON writes a JSON response
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-// writeError writes an error response
-func writeError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
