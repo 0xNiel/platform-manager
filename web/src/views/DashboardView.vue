@@ -144,43 +144,103 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref } from 'vue'
+import { defineComponent, computed, ref, onMounted } from 'vue'
+import { api } from '../api/client'
 
 export default defineComponent({
   name: 'DashboardView',
   setup() {
-    // Mock data - will be replaced with API calls
+    // Real data from API
     const stats = ref({
-      tenants: 3,
-      resources: 42,
+      tenants: 0,
+      resources: 0,
     })
 
     const resourceStates = ref({
-      ready: 35,
-      failed: 3,
-      waiting: 2,
-      unknown: 1,
-      paused: 1,
+      ready: 0,
+      failed: 0,
+      waiting: 0,
+      unknown: 0,
+      paused: 0,
     })
 
     const crossplane = ref({
-      compositions: 12,
-      claims: 28,
-      xrs: 28,
-      failed: 2,
+      compositions: 0,
+      claims: 0,
+      xrs: 0,
+      failed: 0,
     })
 
     const argo = ref({
-      totalApps: 8,
-      synced: 6,
-      outOfSync: 2,
+      totalApps: 0,
+      synced: 0,
+      outOfSync: 0,
       degraded: 0,
     })
 
     const iamDrift = ref({
-      totalRoles: 15,
-      rolesWithDrift: 2,
-      extraPrivileges: 1,
+      totalRoles: 0,
+      rolesWithDrift: 0,
+      extraPrivileges: 0,
+    })
+
+    // Load real data from API
+    const loadPlatformHealth = async () => {
+      try {
+        const health = await api.getPlatformHealth()
+        
+        // Update stats
+        stats.value.tenants = health.totalTenants || 0
+        stats.value.resources = (health.kubernetesResources?.total || 0) + 
+                                (health.crossplaneResources?.total || 0)
+        
+        // Update resource states (combine K8s + Crossplane)
+        resourceStates.value = {
+          ready: (health.kubernetesResources?.ready || 0) + (health.crossplaneResources?.ready || 0),
+          failed: (health.kubernetesResources?.failed || 0) + (health.crossplaneResources?.failed || 0),
+          waiting: (health.kubernetesResources?.waiting || 0) + (health.crossplaneResources?.waiting || 0),
+          unknown: (health.kubernetesResources?.unknown || 0) + (health.crossplaneResources?.unknown || 0),
+          paused: (health.kubernetesResources?.paused || 0) + (health.crossplaneResources?.paused || 0),
+        }
+        
+        // Update Crossplane stats
+        if (health.crossplane) {
+          crossplane.value = {
+            compositions: health.crossplane.compositions || 0,
+            claims: health.crossplane.claims || 0,
+            xrs: health.crossplane.xrs || 0,
+            failed: health.crossplane.failed || 0,
+          }
+        }
+        
+        // Update ArgoCD stats
+        if (health.argo || health.argoSummary) {
+          const argoData = health.argo || health.argoSummary
+          if (argoData) {
+            argo.value = {
+              totalApps: argoData.totalApps || 0,
+              synced: argoData.synced || 0,
+              outOfSync: argoData.outOfSync || 0,
+              degraded: argoData.degraded || 0,
+            }
+          }
+        }
+        
+        // Update IAM Drift stats
+        if (health.iamDrift) {
+          iamDrift.value = {
+            totalRoles: health.iamDrift.totalRoles || 0,
+            rolesWithDrift: health.iamDrift.rolesWithDrift || 0,
+            extraPrivileges: health.iamDrift.extraPrivileges || 0,
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load platform health:', error)
+      }
+    }
+
+    onMounted(() => {
+      loadPlatformHealth()
     })
 
     const overallStatus = computed(() => {

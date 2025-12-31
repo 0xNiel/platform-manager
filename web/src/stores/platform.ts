@@ -20,12 +20,12 @@ export const usePlatformStore = defineStore('platform', () => {
 
   const failedResourceCount = computed(() => {
     if (!platformHealth.value) return 0
-    return platformHealth.value.resourceStates.failed
+    return platformHealth.value.resourceStates?.failed || 0
   })
 
   const iamDriftCount = computed(() => {
     if (!platformHealth.value) return 0
-    return platformHealth.value.iamDrift.rolesWithDrift
+    return platformHealth.value.iamDrift?.rolesWithDrift || 0
   })
 
   // Actions

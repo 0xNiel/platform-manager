@@ -48,11 +48,29 @@ apiClient.interceptors.response.use(
 
 // API types
 export interface PlatformHealth {
-  overallHealth: 'healthy' | 'warning' | 'critical'
-  resourceStates: ResourceStateCounts
-  crossplane: CrossplaneSummary
-  argo: ArgoSummary
-  iamDrift: IAMDriftSummary
+  overallHealth: string
+  totalTenants?: number
+  healthyTenants?: number
+  degradedTenants?: number
+  criticalTenants?: number
+  resourceStates?: ResourceStateCounts
+  crossplaneResources?: ResourceStateCounts
+  kubernetesResources?: ResourceStateCounts
+  crossplane?: CrossplaneSummary
+  argo?: ArgoSummary
+  argoSummary?: ArgoSummary
+  iamDrift?: IAMDriftSummary
+  totalIamDrift?: number
+  tenants?: Array<{
+    name: string
+    displayName: string
+    health: string
+    failedResources: number
+    totalResources: number
+    iamDriftCount: number
+    argoOutOfSync: number
+  }>
+  topIssues?: string[]
 }
 
 export interface ResourceStateCounts {
