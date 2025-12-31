@@ -113,7 +113,7 @@ func (s *Server) setupRouter() *chi.Mux {
 		tenantHandler := handlers.NewTenantHandler(s.client)
 		resourcesHandler := handlers.NewResourcesHandler(s.client)
 		metricsHandler := handlers.NewMetricsHandler(s.client, s.prometheusClient)
-		
+
 		// Create audit logger and actions handler
 		auditLogger := middleware.NewDefaultAuditLogger()
 		actionsHandler := handlers.NewActionsHandler(s.client, auditLogger)

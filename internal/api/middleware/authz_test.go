@@ -338,4 +338,3 @@ func TestRequireCapabilityWithoutUser(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusForbidden)
 	}
 }
-

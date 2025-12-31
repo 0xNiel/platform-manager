@@ -18,6 +18,8 @@ package middleware
 
 import (
 	"net/http"
+	
+	"github.com/platform-manager/platform-manager/internal/metrics"
 )
 
 // Capability represents a specific permission in the system
@@ -65,6 +67,12 @@ func RequireCapability(cap Capability) func(http.Handler) http.Handler {
 
 			// Check if user has the required capability
 			if !hasCapability(user.Role, cap) {
+				// Record authorization denial metric
+				actionName := capabilityToActionName(cap)
+				if actionName != "" {
+					metrics.ActionsMetrics.RecordAuthDenial(actionName, string(user.Role))
+				}
+				
 				http.Error(w, `{"error": "Forbidden: insufficient permissions"}`, http.StatusForbidden)
 				return
 			}
@@ -142,3 +150,20 @@ func HasCapability(user UserInfo, cap Capability) bool {
 	return hasCapability(user.Role, cap)
 }
 
+// capabilityToActionName maps capability to metrics action name
+func capabilityToActionName(cap Capability) string {
+	switch cap {
+	case CapSyncArgo:
+		return metrics.ActionArgoSync
+	case CapRefreshArgo:
+		return metrics.ActionArgoRefresh
+	case CapPauseCrossplane:
+		return metrics.ActionCrossplanePause
+	case CapReconcileCrossplane:
+		return metrics.ActionCrossplaneReconcile
+	case CapDeleteResource:
+		return metrics.ActionResourceDelete
+	default:
+		return ""
+	}
+}

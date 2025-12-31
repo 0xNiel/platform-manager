@@ -37,4 +37,3 @@ func WriteError(w http.ResponseWriter, statusCode int, message string) {
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
-

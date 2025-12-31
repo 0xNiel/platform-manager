@@ -30,6 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/platform-manager/platform-manager/internal/api/middleware"
+	platformmetrics "github.com/platform-manager/platform-manager/internal/metrics"
 )
 
 var actionsLog = logf.Log.WithName("actions-handler")
@@ -90,23 +91,37 @@ type ActionResponse struct {
 	Details interface{} `json:"details,omitempty"`
 }
 
+// actionMetricsWrapper wraps action execution with metrics
+func (h *ActionsHandler) recordActionMetrics(actionName string, userRole string, startTime time.Time, err error) {
+	duration := time.Since(startTime)
+	success := err == nil
+	platformmetrics.ActionsMetrics.RecordAction(actionName, userRole, success, duration)
+}
+
 // === ArgoCD Actions ===
 
 // SyncArgoApp syncs an ArgoCD application
 // POST /api/v1/actions/argo/sync
 func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
 	ctx := r.Context()
 	user := middleware.UserFromContext(ctx)
+	var actionErr error
+	defer func() {
+		h.recordActionMetrics(platformmetrics.ActionArgoSync, string(user.Role), startTime, actionErr)
+	}()
 
 	var req ArgoSyncRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		actionsLog.Error(err, "Failed to decode sync request")
+		actionErr = err
 		WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Validate request
 	if req.Name == "" || req.Namespace == "" {
+		actionErr = errors.New("missing required fields")
 		WriteError(w, http.StatusBadRequest, "name and namespace are required")
 		return
 	}
@@ -128,6 +143,7 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		actionsLog.Error(err, "Failed to get ArgoCD application", "name", req.Name)
+		actionErr = err
 		h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, err)
 		WriteError(w, http.StatusNotFound, fmt.Sprintf("Application not found: %s", req.Name))
 		return
@@ -138,7 +154,8 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 	if found && operation != nil {
 		msg := "Application already has an operation in progress"
 		actionsLog.Info(msg, "name", req.Name)
-		h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, errors.New("operation in progress"))
+		actionErr = errors.New("operation in progress")
+		h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, actionErr)
 		WriteError(w, http.StatusConflict, msg)
 		return
 	}
@@ -156,6 +173,7 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 
 	if err := unstructured.SetNestedMap(app.Object, syncOperation, "operation"); err != nil {
 		actionsLog.Error(err, "Failed to set sync operation", "name", req.Name)
+		actionErr = err
 		h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, err)
 		WriteError(w, http.StatusInternalServerError, "Failed to set sync operation")
 		return
@@ -164,6 +182,7 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 	// Update the application
 	if err := h.client.Update(ctx, app); err != nil {
 		actionsLog.Error(err, "Failed to update ArgoCD application", "name", req.Name)
+		actionErr = err
 		h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, err)
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update application: %v", err))
 		return
@@ -303,7 +322,7 @@ func (h *ActionsHandler) PauseCrossplaneResource(w http.ResponseWriter, r *http.
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
-	
+
 	// Check if already paused
 	if annotations["crossplane.io/paused"] == "true" {
 		actionsLog.Info("Resource already paused", "resource", resourceID)
@@ -603,4 +622,3 @@ func (h *ActionsHandler) canDelete(resource *unstructured.Unstructured) error {
 
 	return nil
 }
-

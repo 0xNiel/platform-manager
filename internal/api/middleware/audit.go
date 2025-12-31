@@ -76,7 +76,7 @@ func (a *DefaultAuditLogger) LogAction(ctx context.Context, action string, resou
 // LogActionWithDetails logs an action with additional details
 func (a *DefaultAuditLogger) LogActionWithDetails(ctx context.Context, action string, resource string, resourceGVK string, success bool, err error) {
 	user := UserFromContext(ctx)
-	
+
 	entry := AuditLog{
 		Timestamp:   time.Now(),
 		User:        user.Username,
@@ -141,4 +141,3 @@ func (n *NoOpAuditLogger) LogAction(ctx context.Context, action string, resource
 func (n *NoOpAuditLogger) LogActionWithDetails(ctx context.Context, action string, resource string, resourceGVK string, success bool, err error) {
 	// No-op
 }
-
