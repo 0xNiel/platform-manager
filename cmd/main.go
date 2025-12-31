@@ -42,6 +42,7 @@ import (
 	platformv1alpha1 "github.com/platform-manager/platform-manager/api/v1alpha1"
 	"github.com/platform-manager/platform-manager/internal/api"
 	"github.com/platform-manager/platform-manager/internal/controller"
+	"github.com/platform-manager/platform-manager/internal/metrics"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -65,6 +66,7 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var apiAddr string
+	var prometheusURL string
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -72,6 +74,7 @@ func main() {
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&apiAddr, "api-bind-address", ":9080", "The address the API server binds to.")
+	flag.StringVar(&prometheusURL, "prometheus-url", "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090", "The URL of the Prometheus server.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -207,17 +210,39 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create health aggregator
+	healthAggregator := controller.NewHealthAggregator(mgr.GetClient())
+
+	// Create resource scanner
+	resourceScanner := controller.NewResourceScanner(mgr.GetClient())
+
 	if err := (&controller.TenantReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		HealthAggregator: healthAggregator,
+		ResourceScanner:  resourceScanner,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Tenant")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
+	// Initialize Prometheus client (optional)
+	var prometheusClient *metrics.PrometheusClient
+	if prometheusURL != "" {
+		var err error
+		prometheusClient, err = metrics.NewPrometheusClient(prometheusURL)
+		if err != nil {
+			setupLog.Info("Failed to initialize Prometheus client, metrics will be unavailable", "error", err)
+		} else {
+			setupLog.Info("Prometheus client initialized", "url", prometheusURL)
+		}
+	} else {
+		setupLog.Info("Prometheus URL not provided, metrics will be unavailable")
+	}
+
 	// Add the HTTP API server as a runnable
-	apiServer := api.NewServer(apiAddr, mgr.GetClient())
+	apiServer := api.NewServer(apiAddr, mgr.GetClient(), prometheusClient)
 	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		return apiServer.Start(ctx)
 	})); err != nil {

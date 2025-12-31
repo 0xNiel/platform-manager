@@ -85,8 +85,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { defineComponent, ref, onMounted } from 'vue'
 
 interface TenantDetail {
   id: string
@@ -111,7 +110,6 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const route = useRoute()
     const activeTab = ref('overview')
 
     const tabs = [

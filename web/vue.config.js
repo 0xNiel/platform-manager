@@ -1,11 +1,14 @@
 // web/vue.config.js
 const { defineConfig } = require('@vue/cli-service')
 
+// Detect if running in MFE mode
+const isMFE = process.env.BUILD_MODE === 'mfe'
+
 module.exports = defineConfig({
   transpileDependencies: true,
 
-  // Configure for single-spa MFE
-  configureWebpack: {
+  // Configure for single-spa MFE only in production/MFE build
+  configureWebpack: isMFE ? {
     output: {
       // Output as SystemJS module for single-spa
       libraryTarget: 'system',
@@ -21,16 +24,18 @@ module.exports = defineConfig({
       'pinia',
       /^@platform\/.+/,
     ],
-  },
+  } : {},
 
   // Disable chunk splitting for single-spa
   chainWebpack: (config) => {
-    config.optimization.delete('splitChunks')
+    if (isMFE) {
+      config.optimization.delete('splitChunks')
 
-    // Disable HTML plugin for library mode
-    config.plugins.delete('html')
-    config.plugins.delete('preload')
-    config.plugins.delete('prefetch')
+      // Disable HTML plugin for library mode
+      config.plugins.delete('html')
+      config.plugins.delete('preload')
+      config.plugins.delete('prefetch')
+    }
   },
 
   // Dev server config

@@ -95,6 +95,7 @@ type IssueSeverity string
 
 const (
 	IssueSeverityCritical IssueSeverity = "critical"
+	IssueSeverityHigh     IssueSeverity = "high"
 	IssueSeverityWarning  IssueSeverity = "warning"
 	IssueSeverityInfo     IssueSeverity = "info"
 )
@@ -202,4 +203,9 @@ type TenantHealthList struct {
 
 func init() {
 	SchemeBuilder.Register(&TenantHealth{}, &TenantHealthList{})
+}
+
+// Now returns the current time as metav1.Time
+func Now() metav1.Time {
+	return metav1.Now()
 }

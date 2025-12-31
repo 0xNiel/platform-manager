@@ -13,8 +13,65 @@ rules:
   - list
   - watch
 - apiGroups:
+  - apiextensions.crossplane.io
+  resources:
+  - compositeresourcedefinitions
+  - compositions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - iam.aws.upbound.io
+  resources:
+  - groups
+  - policies
+  - rolepolicyattachments
+  - roles
+  - users
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - pkg.crossplane.io
+  resources:
+  - providers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - platform.platform.io
   resources:
+  - resourcesummaries
   - tenanthealth
   - tenants
   verbs:
@@ -28,6 +85,7 @@ rules:
 - apiGroups:
   - platform.platform.io
   resources:
+  - resourcesummaries/status
   - tenanthealth/status
   - tenants/status
   verbs:

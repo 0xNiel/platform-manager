@@ -50,7 +50,9 @@ const (
 // TenantReconciler reconciles a Tenant object
 type TenantReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme           *runtime.Scheme
+	HealthAggregator *HealthAggregator
+	ResourceScanner  *ResourceScanner
 }
 
 // +kubebuilder:rbac:groups=platform.platform.io,resources=tenants,verbs=get;list;watch;create;update;patch;delete
@@ -58,7 +60,15 @@ type TenantReconciler struct {
 // +kubebuilder:rbac:groups=platform.platform.io,resources=tenants/finalizers,verbs=update
 // +kubebuilder:rbac:groups=platform.platform.io,resources=tenanthealth,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=platform.platform.io,resources=tenanthealth/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=platform.platform.io,resources=resourcesummaries,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=platform.platform.io,resources=resourcesummaries/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets;daemonsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=jobs;cronjobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=argoproj.io,resources=applications,verbs=get;list;watch
+// +kubebuilder:rbac:groups=iam.aws.upbound.io,resources=roles;policies;rolepolicyattachments;users;groups,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apiextensions.crossplane.io,resources=compositeresourcedefinitions;compositions,verbs=get;list;watch
+// +kubebuilder:rbac:groups=pkg.crossplane.io,resources=providers,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -137,6 +147,14 @@ func (r *TenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			Message:            "TenantHealth resource is ready",
 			LastTransitionTime: metav1.Now(),
 		})
+	}
+
+	// Scan and create ResourceSummary CRs for all tenant resources
+	if r.ResourceScanner != nil {
+		if err := r.ResourceScanner.ScanTenantResources(ctx, tenant); err != nil {
+			log.Error(err, "Failed to scan tenant resources")
+			// Don't fail the reconciliation, just log
+		}
 	}
 
 	// Set Ready condition
@@ -251,15 +269,37 @@ func (r *TenantReconciler) ensureTenantHealth(ctx context.Context, tenant *platf
 		}
 	}
 
-	// Initialize status if empty
-	if tenantHealth.Status.OverallHealth == "" {
-		tenantHealth.Status.OverallHealth = platformv1alpha1.HealthLevelUnknown
-		now := metav1.Now()
-		tenantHealth.Status.LastUpdated = &now
+	// Aggregate health from all sources
+	if r.HealthAggregator != nil {
+		healthStatus, err := r.HealthAggregator.AggregateHealth(ctx, tenant)
+		if err != nil {
+			log.Error(err, "Failed to aggregate health")
+		} else {
+			// Update the status
+			tenantHealth.Status = *healthStatus
+			now := metav1.Now()
+			tenantHealth.Status.LastUpdated = &now
 
-		if err := r.Status().Update(ctx, tenantHealth); err != nil {
-			log.Error(err, "Failed to update TenantHealth status")
-			// Don't fail, we'll update it on the next reconcile
+			if err := r.Status().Update(ctx, tenantHealth); err != nil {
+				log.Error(err, "Failed to update TenantHealth status")
+				// Don't fail, we'll update it on the next reconcile
+			} else {
+				log.V(1).Info("Updated TenantHealth status",
+					"health", healthStatus.OverallHealth,
+					"crossplaneTotal", healthStatus.CrossplaneResources.Total,
+					"k8sTotal", healthStatus.KubernetesResources.Total)
+			}
+		}
+	} else {
+		// Initialize status if empty and no aggregator
+		if tenantHealth.Status.OverallHealth == "" {
+			tenantHealth.Status.OverallHealth = platformv1alpha1.HealthLevelUnknown
+			now := metav1.Now()
+			tenantHealth.Status.LastUpdated = &now
+
+			if err := r.Status().Update(ctx, tenantHealth); err != nil {
+				log.Error(err, "Failed to update TenantHealth status")
+			}
 		}
 	}
 

@@ -29,22 +29,25 @@ import (
 
 	"github.com/platform-manager/platform-manager/internal/api/handlers"
 	"github.com/platform-manager/platform-manager/internal/api/middleware"
+	"github.com/platform-manager/platform-manager/internal/metrics"
 )
 
 var log = logf.Log.WithName("api-server")
 
 // Server represents the HTTP API server
 type Server struct {
-	client     client.Client
-	httpServer *http.Server
-	addr       string
+	client           client.Client
+	prometheusClient *metrics.PrometheusClient
+	httpServer       *http.Server
+	addr             string
 }
 
 // NewServer creates a new API server
-func NewServer(addr string, k8sClient client.Client) *Server {
+func NewServer(addr string, k8sClient client.Client, promClient *metrics.PrometheusClient) *Server {
 	return &Server{
-		client: k8sClient,
-		addr:   addr,
+		client:           k8sClient,
+		prometheusClient: promClient,
+		addr:             addr,
 	}
 }
 
@@ -108,6 +111,8 @@ func (s *Server) setupRouter() *chi.Mux {
 		// Create handlers with client
 		healthHandler := handlers.NewHealthHandler(s.client)
 		tenantHandler := handlers.NewTenantHandler(s.client)
+		resourcesHandler := handlers.NewResourcesHandler(s.client)
+		metricsHandler := handlers.NewMetricsHandler(s.client, s.prometheusClient)
 
 		// Health endpoints
 		r.Route("/health", func(r chi.Router) {
@@ -120,7 +125,21 @@ func (s *Server) setupRouter() *chi.Mux {
 		r.Route("/tenants", func(r chi.Router) {
 			r.Get("/", tenantHandler.List)
 			r.Get("/{id}", tenantHandler.Get)
-			r.Get("/{id}/resources", tenantHandler.ListResources)
+			r.Get("/{id}/resources", resourcesHandler.ListTenantResources)
+		})
+
+		// Resource endpoints
+		r.Route("/resources", func(r chi.Router) {
+			r.Get("/", resourcesHandler.ListResources)
+			r.Get("/{name}", resourcesHandler.GetResource)
+			r.Get("/{name}/*", resourcesHandler.GetResource) // For nested paths (yaml, events, tree)
+		})
+
+		// Metrics endpoints
+		r.Route("/metrics", func(r chi.Router) {
+			r.Get("/namespaces/{namespace}", metricsHandler.GetNamespaceMetrics)
+			r.Get("/tenants/{id}", metricsHandler.GetTenantMetrics)
+			r.Get("/pods/{namespace}/{podName}", metricsHandler.GetPodMetrics)
 		})
 	})
 
