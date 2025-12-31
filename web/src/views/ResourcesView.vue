@@ -212,8 +212,9 @@ const loadResources = async () => {
   loading.value = true
   error.value = ''
   try {
-    const data = await api.getResources()
-    resources.value = (data as ApiResource[]).map((r) => ({
+    const response = await api.getResources() as { resources?: ApiResource[] }
+    const data = response.resources || []
+    resources.value = data.map((r) => ({
       name: r.spec?.name || r.metadata?.name || 'Unknown',
       kind: r.spec?.kind || 'Unknown',
       namespace: r.spec?.namespace,

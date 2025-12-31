@@ -165,7 +165,7 @@ export const api = {
     state?: string
     kind?: string
     search?: string
-  }): Promise<unknown[]> {
+  }): Promise<{ resources: unknown[]; total: number }> {
     const response = await apiClient.get('/resources', { params })
     return response.data
   },
