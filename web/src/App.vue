@@ -15,14 +15,20 @@
     <main class="main-content">
       <router-view />
     </main>
+    <!-- Toast notifications -->
+    <ToastContainer />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, computed } from 'vue'
+import ToastContainer from './components/ToastContainer.vue'
 
 export default defineComponent({
   name: 'PlatformManager',
+  components: {
+    ToastContainer,
+  },
   setup() {
     // Check if running embedded in single-spa shell
     const isEmbedded = computed(() => !!window.singleSpaNavigate)

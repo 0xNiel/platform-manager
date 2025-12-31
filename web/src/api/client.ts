@@ -104,6 +104,32 @@ export interface TenantHealth {
   memoryUsage: string
 }
 
+// Action types
+export interface ActionResponse {
+  success: boolean
+  message: string
+  details?: Record<string, unknown>
+}
+
+export interface CrossplaneResource {
+  group: string
+  version: string
+  kind: string
+  namespace?: string
+  name: string
+}
+
+export interface ArgoSyncOptions {
+  name: string
+  namespace: string
+  prune?: boolean
+  dryRun?: boolean
+}
+
+export interface DeleteResourceOptions extends CrossplaneResource {
+  confirm: string
+}
+
 // API methods
 export const api = {
   // Health endpoints
@@ -155,16 +181,34 @@ export const api = {
   },
 
   // Action endpoints
-  async syncArgoApp(appName: string, prune = false): Promise<void> {
-    await apiClient.post('/actions/argo/sync', { appName, prune })
+  async syncArgoApp(options: ArgoSyncOptions): Promise<ActionResponse> {
+    const response = await apiClient.post('/actions/argo/sync', options)
+    return response.data
   },
 
-  async pauseCrossplaneResource(resourceRef: string): Promise<void> {
-    await apiClient.post('/actions/crossplane/pause', { resourceRef })
+  async refreshArgoApp(name: string, namespace: string): Promise<ActionResponse> {
+    const response = await apiClient.post('/actions/argo/refresh', { name, namespace })
+    return response.data
   },
 
-  async unpauseCrossplaneResource(resourceRef: string): Promise<void> {
-    await apiClient.post('/actions/crossplane/unpause', { resourceRef })
+  async pauseCrossplaneResource(resource: CrossplaneResource): Promise<ActionResponse> {
+    const response = await apiClient.post('/actions/crossplane/pause', resource)
+    return response.data
+  },
+
+  async unpauseCrossplaneResource(resource: CrossplaneResource): Promise<ActionResponse> {
+    const response = await apiClient.post('/actions/crossplane/unpause', resource)
+    return response.data
+  },
+
+  async reconcileCrossplaneResource(resource: CrossplaneResource): Promise<ActionResponse> {
+    const response = await apiClient.post('/actions/crossplane/reconcile', resource)
+    return response.data
+  },
+
+  async deleteResource(options: DeleteResourceOptions): Promise<ActionResponse> {
+    const response = await apiClient.delete('/actions/resources', { data: options })
+    return response.data
   },
 }
 
