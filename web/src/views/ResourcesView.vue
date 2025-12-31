@@ -6,6 +6,30 @@
       <p class="subtitle">Manage platform resources with actions</p>
     </div>
 
+    <!-- Overview Stats -->
+    <div class="overview-stats">
+      <div class="stat-card">
+        <span class="stat-value">{{ stats.total }}</span>
+        <span class="stat-label">Total Resources</span>
+      </div>
+      <div class="stat-card ready">
+        <span class="stat-value">{{ stats.ready }}</span>
+        <span class="stat-label">Ready</span>
+      </div>
+      <div class="stat-card failed">
+        <span class="stat-value">{{ stats.failed }}</span>
+        <span class="stat-label">Failed</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ stats.argocd }}</span>
+        <span class="stat-label">ArgoCD Apps</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ stats.crossplane }}</span>
+        <span class="stat-label">Crossplane</span>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="filters">
       <input
@@ -164,6 +188,7 @@ interface ApiResource {
   }
   metadata?: {
     name?: string
+    labels?: Record<string, string>
   }
   status?: {
     state?: string
@@ -182,7 +207,18 @@ const selectedKind = ref('')
 // Role-based permissions (would come from auth context in production)
 const canDelete = ref(true) // TODO: Get from user role
 
-// Computed
+// Computed - Overview Stats
+const stats = computed(() => {
+  return {
+    total: resources.value.length,
+    ready: resources.value.filter(r => r.state === 'Ready').length,
+    failed: resources.value.filter(r => r.state === 'Failed').length,
+    argocd: resources.value.filter(r => r.category === 'ArgoCD').length,
+    crossplane: resources.value.filter(r => r.category === 'Crossplane').length,
+  }
+})
+
+// Computed - Filtered Resources
 const filteredResources = computed(() => {
   let filtered = resources.value
 
@@ -214,17 +250,27 @@ const loadResources = async () => {
   try {
     const response = await api.getResources() as { resources?: ApiResource[] }
     const data = response.resources || []
-    resources.value = data.map((r) => ({
-      name: r.spec?.name || r.metadata?.name || 'Unknown',
-      kind: r.spec?.kind || 'Unknown',
-      namespace: r.spec?.namespace,
-      tenantRef: r.spec?.tenantRef,
-      category: r.spec?.category || 'Kubernetes',
-      state: r.status?.state || 'Unknown',
-      message: r.status?.message,
-      group: r.spec?.group,
-      version: r.spec?.version,
-    }))
+    resources.value = data.map((r) => {
+      // Determine state from labels or default to Ready
+      let state = r.status?.state || 'Ready'
+      
+      // Check if resource has failed label
+      if (r.metadata?.labels?.['platform.io/failed'] === 'true') {
+        state = 'Failed'
+      }
+      
+      return {
+        name: r.spec?.name || r.metadata?.name || 'Unknown',
+        kind: r.spec?.kind || 'Unknown',
+        namespace: r.spec?.namespace,
+        tenantRef: r.spec?.tenantRef,
+        category: r.spec?.category || 'Kubernetes',
+        state: state,
+        message: r.status?.message,
+        group: r.spec?.group,
+        version: r.spec?.version,
+      }
+    })
   } catch (e) {
     const err = e as Error
     error.value = `Failed to load resources: ${err.message}`
@@ -366,6 +412,53 @@ onMounted(() => {
 
   .subtitle {
     color: #94a3b8;
+  }
+}
+
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  text-align: center;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  }
+
+  &.ready {
+    border-left: 3px solid #10b981;
+  }
+
+  &.failed {
+    border-left: 3px solid #ef4444;
+  }
+
+  .stat-value {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat-label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    font-weight: 600;
   }
 }
 
