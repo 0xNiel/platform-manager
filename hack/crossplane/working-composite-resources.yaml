@@ -1,0 +1,144 @@
+# Working Composite Resources for Crossplane
+# Creates a higher-level "TenantIAMBundle" that creates Role + Policy together
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: tenantiambundles.platform.io
+spec:
+  group: platform.io
+  names:
+    kind: TenantIAMBundle
+    plural: tenantiambundles
+  claimNames:
+    kind: TenantIAMBundleClaim
+    plural: tenantiambundleclaims
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                tenantName:
+                  type: string
+                  description: Name of the tenant
+                serviceName:
+                  type: string
+                  description: Name of the service (e.g., ml, data, api)
+                s3Buckets:
+                  type: array
+                  description: List of S3 bucket names to grant access to
+                  items:
+                    type: string
+              required:
+                - tenantName
+                - serviceName
+            status:
+              type: object
+              properties:
+                roleArn:
+                  type: string
+                  description: ARN of the created IAM role
+                policyArn:
+                  type: string
+                  description: ARN of the created IAM policy
+                ready:
+                  type: boolean
+                  description: Whether all resources are ready
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: tenantiambundle-aws
+  labels:
+    provider: aws
+    environment: localstack
+spec:
+  compositeTypeRef:
+    apiVersion: platform.io/v1alpha1
+    kind: TenantIAMBundle
+  
+  resources:
+    # IAM Role for the tenant service
+    - name: service-role
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        spec:
+          providerConfigRef:
+            name: localstack
+          forProvider:
+            assumeRolePolicy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [{
+                  "Effect": "Allow",
+                  "Principal": {"Service": "lambda.amazonaws.com"},
+                  "Action": "sts:AssumeRole"
+                }]
+              }
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.tenantName
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-composite-role"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.tenantName
+          toFieldPath: metadata.labels[platform.io/tenant]
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.serviceName
+          toFieldPath: spec.forProvider.tags.service
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.tags.tenant
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.arn
+          toFieldPath: status.roleArn
+    
+    # IAM Policy for S3 access
+    - name: service-policy
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Policy
+        spec:
+          providerConfigRef:
+            name: localstack
+          forProvider:
+            policy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [{
+                  "Effect": "Allow",
+                  "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+                  "Resource": ["arn:aws:s3:::*"]
+                }]
+              }
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.tenantName
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-composite-policy"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.tenantName
+          toFieldPath: metadata.labels[platform.io/tenant]
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.serviceName
+          toFieldPath: spec.forProvider.tags.service
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.tags.tenant
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.arn
+          toFieldPath: status.policyArn
+

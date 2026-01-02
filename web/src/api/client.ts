@@ -16,6 +16,13 @@ apiClient.interceptors.request.use(
   (config) => {
     // OAuth2Proxy handles auth at gateway level
     // Headers like X-Auth-Request-User are set by the gateway
+    
+    // In development mode (no OAuth2Proxy), set dev role header
+    // This gives admin permissions for local testing
+    if (process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost') {
+      config.headers['X-Dev-Role'] = 'admin'
+    }
+    
     return config
   },
   (error) => {
@@ -141,6 +148,7 @@ export interface ArgoSyncOptions {
   name: string
   namespace: string
   prune?: boolean
+  force?: boolean
   dryRun?: boolean
 }
 

@@ -29,6 +29,7 @@ import (
 
 	"github.com/platform-manager/platform-manager/internal/api/handlers"
 	"github.com/platform-manager/platform-manager/internal/api/middleware"
+	"github.com/platform-manager/platform-manager/internal/controller"
 	"github.com/platform-manager/platform-manager/internal/metrics"
 )
 
@@ -38,15 +39,19 @@ var log = logf.Log.WithName("api-server")
 type Server struct {
 	client           client.Client
 	prometheusClient *metrics.PrometheusClient
+	iamScanner       *controller.IAMDriftScanner
+	ruleEvaluator    *controller.RuleEvaluator
 	httpServer       *http.Server
 	addr             string
 }
 
 // NewServer creates a new API server
-func NewServer(addr string, k8sClient client.Client, promClient *metrics.PrometheusClient) *Server {
+func NewServer(addr string, k8sClient client.Client, promClient *metrics.PrometheusClient, iamScanner *controller.IAMDriftScanner, ruleEvaluator *controller.RuleEvaluator) *Server {
 	return &Server{
 		client:           k8sClient,
 		prometheusClient: promClient,
+		iamScanner:       iamScanner,
+		ruleEvaluator:    ruleEvaluator,
 		addr:             addr,
 	}
 }
@@ -170,6 +175,21 @@ func (s *Server) setupRouter() *chi.Mux {
 			r.With(middleware.RequireCapability(middleware.CapDeleteResource)).
 				Delete("/resources", actionsHandler.DeleteResource)
 		})
+
+		// IAM drift endpoints
+		if s.iamScanner != nil {
+			iamHandler := handlers.NewIAMHandler(s.iamScanner, log)
+			iamHandler.RegisterRoutes(r)
+		}
+
+		// Troubleshooting endpoints
+		if s.ruleEvaluator != nil {
+			log.Info("Registering troubleshooting routes")
+			troubleshootingHandler := handlers.NewTroubleshootingHandler(s.ruleEvaluator)
+			troubleshootingHandler.RegisterRoutes(r)
+		} else {
+			log.Info("Rule evaluator is nil, troubleshooting routes not registered")
+		}
 	})
 
 	return r

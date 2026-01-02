@@ -52,6 +52,12 @@ func (s *ResourceScanner) ScanTenantResources(ctx context.Context, tenant *platf
 		return err
 	}
 
+	// 4. Cleanup orphaned ResourceSummaries (resources that no longer exist)
+	if err := s.cleanupOrphanedResourceSummaries(ctx, tenant); err != nil {
+		log.Error(err, "Failed to cleanup orphaned ResourceSummaries")
+		// Don't return error, just log it
+	}
+
 	log.Info("Completed scanning tenant resources")
 	return nil
 }
@@ -253,7 +259,7 @@ func (s *ResourceScanner) createOrUpdateResourceSummary(ctx context.Context, ten
 		},
 	}
 
-	// Create or update
+	// Create or update the spec
 	_, err := controllerutil.CreateOrUpdate(ctx, s.Client, resourceSummary, func() error {
 		// Populate spec
 		gvk := obj.GetObjectKind().GroupVersionKind()
@@ -272,15 +278,20 @@ func (s *ResourceScanner) createOrUpdateResourceSummary(ctx context.Context, ten
 			resourceSummary.Spec.Provider = extractProvider(gvk.Group)
 		}
 
-		// Populate status by normalizing the resource state
-		resourceSummary.Status = s.normalizeResourceStatus(obj, category)
-		resourceSummary.Status.LastSeen = &metav1.Time{Time: time.Now()}
-
 		return nil
 	})
 
 	if err != nil {
 		log.Error(err, "Failed to create or update ResourceSummary", "name", summaryName)
+		return err
+	}
+
+	// Update status separately (status subresource requires separate update)
+	resourceSummary.Status = s.normalizeResourceStatus(obj, category)
+	resourceSummary.Status.LastSeen = &metav1.Time{Time: time.Now()}
+
+	if err := s.Client.Status().Update(ctx, resourceSummary); err != nil {
+		log.Error(err, "Failed to update ResourceSummary status", "name", summaryName)
 		return err
 	}
 
@@ -605,4 +616,83 @@ func generateResourceSummaryName(tenantName string, obj client.Object) string {
 	}
 	// Namespaced resource
 	return fmt.Sprintf("%s-%s-%s-%s", tenantName, kind, namespace, name)
+}
+
+// cleanupOrphanedResourceSummaries removes ResourceSummaries for resources that no longer exist
+func (s *ResourceScanner) cleanupOrphanedResourceSummaries(ctx context.Context, tenant *platformv1alpha1.Tenant) error {
+	log := logf.FromContext(ctx).WithValues("tenant", tenant.Name)
+
+	// List all ResourceSummaries for this tenant
+	summaryList := &platformv1alpha1.ResourceSummaryList{}
+	listOpts := []client.ListOption{
+		client.MatchingLabels{
+			"platform.io/tenant": tenant.Name,
+		},
+	}
+
+	if err := s.Client.List(ctx, summaryList, listOpts...); err != nil {
+		return fmt.Errorf("failed to list ResourceSummaries: %w", err)
+	}
+
+	deletedCount := 0
+	for _, summary := range summaryList.Items {
+		// Check if the underlying resource still exists
+		exists, err := s.resourceExists(ctx, &summary)
+		if err != nil {
+			log.Error(err, "Failed to check if resource exists", "summary", summary.Name)
+			continue
+		}
+
+		if !exists {
+			// Resource no longer exists, delete the ResourceSummary
+			if err := s.Client.Delete(ctx, &summary); err != nil {
+				log.Error(err, "Failed to delete orphaned ResourceSummary", "summary", summary.Name)
+				continue
+			}
+			log.Info("Deleted orphaned ResourceSummary", "summary", summary.Name, "resource", summary.Spec.Name)
+			deletedCount++
+		}
+	}
+
+	if deletedCount > 0 {
+		log.Info("Cleanup completed", "orphanedResourcesDeleted", deletedCount)
+	}
+
+	return nil
+}
+
+// resourceExists checks if the underlying resource still exists for a ResourceSummary
+func (s *ResourceScanner) resourceExists(ctx context.Context, summary *platformv1alpha1.ResourceSummary) (bool, error) {
+	// Build the GVK from the ResourceSummary spec
+	gvk := schema.GroupVersionKind{
+		Group:   summary.Spec.Group,
+		Version: summary.Spec.Version,
+		Kind:    summary.Spec.Kind,
+	}
+
+	// Create an unstructured object to query
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	// Build the object key
+	key := client.ObjectKey{
+		Name: summary.Spec.Name,
+	}
+	if summary.Spec.Namespace != "" {
+		key.Namespace = summary.Spec.Namespace
+	}
+
+	// Try to get the resource
+	err := s.Client.Get(ctx, key, obj)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			// Resource not found, it no longer exists
+			return false, nil
+		}
+		// Other error occurred
+		return false, err
+	}
+
+	// Resource exists
+	return true, nil
 }

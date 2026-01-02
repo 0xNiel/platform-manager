@@ -1,0 +1,96 @@
+# hack/crossplane/additional-resources.yaml
+# Additional Crossplane Managed Resources for S3 and DynamoDB
+# Apply these after S3 and DynamoDB providers are fully ready
+
+---
+apiVersion: s3.aws.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: tenant-alpha-ml-data
+  labels:
+    platform.io/tenant: tenant-alpha
+    platform.io/component: ml
+    platform.io/resource-type: s3-bucket
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    region: us-east-1
+    tags:
+      tenant: alpha
+      purpose: ml-data
+      managed-by: crossplane
+
+---
+apiVersion: s3.aws.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: tenant-beta-analytics
+  labels:
+    platform.io/tenant: tenant-beta
+    platform.io/component: analytics
+    platform.io/resource-type: s3-bucket
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    region: us-east-1
+    tags:
+      tenant: beta
+      purpose: analytics
+      managed-by: crossplane
+
+---
+apiVersion: dynamodb.aws.upbound.io/v1beta1
+kind: Table
+metadata:
+  name: tenant-alpha-ml-models
+  labels:
+    platform.io/tenant: tenant-alpha
+    platform.io/component: ml
+    platform.io/resource-type: dynamodb-table
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    region: us-east-1
+    billingMode: PAY_PER_REQUEST
+    attribute:
+      - name: modelId
+        type: S
+      - name: version
+        type: "N"
+    hashKey: modelId
+    rangeKey: version
+    tags:
+      tenant: alpha
+      purpose: ml-models
+      managed-by: crossplane
+
+---
+apiVersion: dynamodb.aws.upbound.io/v1beta1
+kind: Table
+metadata:
+  name: tenant-beta-events
+  labels:
+    platform.io/tenant: tenant-beta
+    platform.io/component: analytics
+    platform.io/resource-type: dynamodb-table
+spec:
+  providerConfigRef:
+    name: localstack
+  forProvider:
+    region: us-east-1
+    billingMode: PAY_PER_REQUEST
+    attribute:
+      - name: eventId
+        type: S
+      - name: timestamp
+        type: "N"
+    hashKey: eventId
+    rangeKey: timestamp
+    tags:
+      tenant: beta
+      purpose: events
+      managed-by: crossplane
+

@@ -5,7 +5,20 @@
       <p class="page-subtitle">Overview of all platform tenants</p>
     </header>
 
-    <div class="tenants-table">
+    <div v-if="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading tenants...</p>
+    </div>
+
+    <div v-else-if="error" class="error">
+      <p>{{ error }}</p>
+    </div>
+
+    <div v-else-if="tenants.length === 0" class="empty">
+      <p>No tenants found</p>
+    </div>
+
+    <div v-else class="tenants-table">
       <table>
         <thead>
           <tr>
@@ -70,8 +83,9 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 interface Tenant {
   id: string
@@ -92,57 +106,154 @@ interface Tenant {
   memory: string
 }
 
+interface PlatformTenant {
+  name: string
+  displayName: string
+  health: string
+  failedResources: number
+  totalResources: number
+  iamDriftCount: number
+  argoOutOfSync: number
+}
+
+interface MetricsResponse {
+  totalCpuCores?: number
+  totalMemoryMb?: number
+}
+
+interface TenantHealthResponse {
+  argo?: {
+    totalApps?: number
+    synced?: number
+  }
+}
+
+// Tenant icons mapping
+const TENANT_ICONS: Record<string, string> = {
+  'tenant-alpha': '🤖',
+  'tenant-beta': '📊',
+  'tenant-gamma': '⚙️',
+}
+
 export default defineComponent({
   name: 'TenantsView',
   setup() {
     const router = useRouter()
+    const tenants = ref<Tenant[]>([])
+    const loading = ref(true)
+    const error = ref<string | null>(null)
 
-    // Mock data - will be replaced with API calls
-    const tenants = ref<Tenant[]>([
-      {
-        id: 'alpha',
-        name: 'Tenant Alpha',
-        icon: '🤖',
-        namespaces: ['tenant-alpha'],
-        status: 'warning',
-        resources: { total: 18, failed: 1 },
-        iamDrift: 1,
-        argoApps: { total: 3, synced: 2 },
-        cpu: '450m',
-        memory: '512Mi',
-      },
-      {
-        id: 'beta',
-        name: 'Tenant Beta',
-        icon: '📊',
-        namespaces: ['tenant-beta'],
-        status: 'healthy',
-        resources: { total: 12, failed: 0 },
-        iamDrift: 0,
-        argoApps: { total: 2, synced: 2 },
-        cpu: '320m',
-        memory: '384Mi',
-      },
-      {
-        id: 'gamma',
-        name: 'Tenant Gamma',
-        icon: '⚙️',
-        namespaces: ['tenant-gamma'],
-        status: 'critical',
-        resources: { total: 8, failed: 2 },
-        iamDrift: 1,
-        argoApps: { total: 3, synced: 1 },
-        cpu: '180m',
-        memory: '256Mi',
-      },
-    ])
+    const fetchTenants = async () => {
+      try {
+        loading.value = true
+        error.value = null
+
+        // Fetch platform health which includes tenant summaries
+        const healthResponse = await axios.get('http://localhost:9080/api/v1/health/platform')
+        const platformHealth = healthResponse.data
+
+        // Transform the data to match our UI structure
+        const transformedTenants = platformHealth.tenants.map((tenant: PlatformTenant) => {
+          // Determine status based on health and failures
+          let status: 'healthy' | 'warning' | 'critical' = 'healthy'
+          if (tenant.health === 'Unknown') {
+            status = 'warning'
+          } else if (tenant.failedResources > 0) {
+            status = tenant.failedResources > 1 ? 'critical' : 'warning'
+          } else if (tenant.iamDriftCount > 0 || tenant.argoOutOfSync > 0) {
+            status = 'warning'
+          }
+
+          return {
+            id: tenant.name,
+            name: tenant.displayName || tenant.name,
+            icon: TENANT_ICONS[tenant.name] || '🏢',
+            namespaces: [tenant.name], // Could be fetched from tenant details if needed
+            status,
+            resources: {
+              total: tenant.totalResources,
+              failed: tenant.failedResources,
+            },
+            iamDrift: tenant.iamDriftCount,
+            argoApps: {
+              total: platformHealth.argoSummary?.totalApps || 0,
+              synced: platformHealth.argoSummary?.synced || 0,
+            },
+            cpu: '0m', // Will be populated from metrics if available
+            memory: '0Mi',
+          }
+        })
+
+        // Sort tenants alphabetically by name for consistent display order
+        tenants.value = transformedTenants.sort((a: Tenant, b: Tenant) => a.name.localeCompare(b.name))
+
+        // Fetch metrics for each tenant
+        await Promise.all(
+          tenants.value.map(async (tenant) => {
+            try {
+              const metricsResponse = await axios.get<MetricsResponse>(
+                `http://localhost:9080/api/v1/metrics/tenants/${tenant.id}`
+              )
+              const metrics = metricsResponse.data
+              
+              // Format CPU in millicores
+              const cpuCores = metrics.totalCpuCores || 0
+              tenant.cpu = `${Math.round(cpuCores * 1000)}m`
+              
+              // Format memory in Mi
+              const memoryMb = metrics.totalMemoryMb || 0
+              tenant.memory = `${Math.round(memoryMb)}Mi`
+            } catch (err) {
+              // If metrics fail, keep default values
+              console.warn(`Failed to fetch metrics for ${tenant.id}:`, err)
+            }
+          })
+        )
+
+        // Fetch ArgoCD apps per tenant
+        for (const tenant of tenants.value) {
+          try {
+            const healthResponse = await axios.get<TenantHealthResponse>(
+              `http://localhost:9080/api/v1/health/tenants/${tenant.id}`
+            )
+            const tenantHealth = healthResponse.data
+            
+            if (tenantHealth.argo) {
+              tenant.argoApps = {
+                total: tenantHealth.argo.totalApps || 0,
+                synced: tenantHealth.argo.synced || 0,
+              }
+            }
+          } catch (err) {
+            console.warn(`Failed to fetch ArgoCD info for ${tenant.id}:`, err)
+          }
+        }
+
+      } catch (err) {
+        console.error('Failed to fetch tenants:', err)
+        error.value = err instanceof Error ? err.message : 'Failed to load tenants'
+      } finally {
+        loading.value = false
+      }
+    }
 
     const goToTenant = (id: string) => {
       router.push(`/tenants/${id}`)
     }
 
+    onMounted(() => {
+      fetchTenants()
+      
+      // Refresh every 30 seconds
+      const interval = setInterval(fetchTenants, 30000)
+      
+      return () => clearInterval(interval)
+    })
+
     return {
       tenants,
+      loading,
+      error,
       goToTenant,
     }
   },
@@ -169,6 +280,53 @@ export default defineComponent({
 .page-subtitle {
   color: var(--text-secondary, #94a3b8);
   margin: 0;
+}
+
+.loading,
+.error,
+.empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: var(--bg-secondary, #1e293b);
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-color, #334155);
+}
+
+.loading {
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border-color, #334155);
+    border-top-color: var(--primary, #3b82f6);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  p {
+    color: var(--text-secondary, #94a3b8);
+    margin: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error {
+  p {
+    color: #ef4444;
+    margin: 0;
+  }
+}
+
+.empty {
+  p {
+    color: var(--text-secondary, #94a3b8);
+    margin: 0;
+  }
 }
 
 .tenants-table {

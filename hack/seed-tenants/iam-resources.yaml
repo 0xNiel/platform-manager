@@ -7,7 +7,7 @@ kind: Role
 metadata:
   name: tenant-alpha-lambda-role
   labels:
-    platform.io/tenant: alpha
+    platform.io/tenant: tenant-alpha
     platform.io/component: ml
     platform.io/resource-type: iam-role
 spec:
@@ -28,19 +28,16 @@ spec:
         ]
       }
     tags:
-      - key: tenant
-        value: alpha
-      - key: managed-by
-        value: crossplane
-      - key: environment
-        value: dev
+      tenant: alpha
+      managed-by: crossplane
+      environment: dev
 ---
 apiVersion: iam.aws.upbound.io/v1beta1
 kind: Policy
 metadata:
   name: tenant-alpha-s3-policy
   labels:
-    platform.io/tenant: alpha
+    platform.io/tenant: tenant-alpha
     platform.io/component: ml
     platform.io/resource-type: iam-policy
 spec:
@@ -67,17 +64,15 @@ spec:
         ]
       }
     tags:
-      - key: tenant
-        value: alpha
-      - key: managed-by
-        value: crossplane
+      tenant: alpha
+      managed-by: crossplane
 ---
 apiVersion: iam.aws.upbound.io/v1beta1
 kind: Role
 metadata:
   name: tenant-beta-data-role
   labels:
-    platform.io/tenant: beta
+    platform.io/tenant: tenant-beta
     platform.io/component: data
     platform.io/resource-type: iam-role
 spec:
@@ -98,19 +93,16 @@ spec:
         ]
       }
     tags:
-      - key: tenant
-        value: beta
-      - key: managed-by
-        value: crossplane
-      - key: environment
-        value: dev
+      tenant: beta
+      managed-by: crossplane
+      environment: dev
 ---
 apiVersion: iam.aws.upbound.io/v1beta1
 kind: Policy
 metadata:
   name: tenant-beta-dynamodb-policy
   labels:
-    platform.io/tenant: beta
+    platform.io/tenant: tenant-beta
     platform.io/component: data
     platform.io/resource-type: iam-policy
 spec:
@@ -135,8 +127,6 @@ spec:
         ]
       }
     tags:
-      - key: tenant
-        value: beta
-      - key: managed-by
-        value: crossplane
+      tenant: beta
+      managed-by: crossplane
 

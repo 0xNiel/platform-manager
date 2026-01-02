@@ -22,6 +22,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -69,12 +70,16 @@ func main() {
 	var prometheusURL string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var iamDriftScanInterval string
+	var ruleEvalInterval string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&apiAddr, "api-bind-address", ":9080", "The address the API server binds to.")
 	flag.StringVar(&prometheusURL, "prometheus-url", "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090", "The URL of the Prometheus server.")
+	flag.StringVar(&iamDriftScanInterval, "iam-drift-scan-interval", "5m", "The interval for IAM drift scanning (e.g., 5m, 1h)")
+	flag.StringVar(&ruleEvalInterval, "rule-eval-interval", "2m", "The interval for rule evaluation (e.g., 2m, 5m, 10m)")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -216,6 +221,40 @@ func main() {
 	// Create resource scanner
 	resourceScanner := controller.NewResourceScanner(mgr.GetClient())
 
+	// Initialize IAM drift scanner (before tenant reconciler)
+	scanInterval, err := time.ParseDuration(iamDriftScanInterval)
+	if err != nil {
+		setupLog.Error(err, "invalid IAM drift scan interval", "interval", iamDriftScanInterval)
+		os.Exit(1)
+	}
+
+	iamScanner, err := controller.NewIAMDriftScanner(mgr.GetClient(), scanInterval)
+	if err != nil {
+		setupLog.Info("Failed to initialize IAM drift scanner, IAM drift detection will be unavailable", "error", err)
+	} else {
+		setupLog.Info("IAM drift scanner initialized", "interval", scanInterval)
+		// Connect scanner to health aggregator
+		healthAggregator.SetIAMScanner(iamScanner)
+		if err := iamScanner.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to add IAM drift scanner to manager")
+			os.Exit(1)
+		}
+	}
+
+	// Initialize Rule Evaluator for troubleshooting
+	evalInterval, err := time.ParseDuration(ruleEvalInterval)
+	if err != nil {
+		setupLog.Error(err, "invalid rule evaluation interval", "interval", ruleEvalInterval)
+		os.Exit(1)
+	}
+
+	ruleEvaluator := controller.NewRuleEvaluator(mgr, evalInterval)
+	setupLog.Info("Rule evaluator initialized", "interval", evalInterval, "rules", len(ruleEvaluator.GetEngine().GetRules()))
+	if err := mgr.Add(ruleEvaluator); err != nil {
+		setupLog.Error(err, "unable to add rule evaluator to manager")
+		os.Exit(1)
+	}
+
 	if err := (&controller.TenantReconciler{
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
@@ -241,8 +280,8 @@ func main() {
 		setupLog.Info("Prometheus URL not provided, metrics will be unavailable")
 	}
 
-	// Add the HTTP API server as a runnable
-	apiServer := api.NewServer(apiAddr, mgr.GetClient(), prometheusClient)
+	// Add the HTTP API server as a runnable (iamScanner and ruleEvaluator initialized earlier)
+	apiServer := api.NewServer(apiAddr, mgr.GetClient(), prometheusClient, iamScanner, ruleEvaluator)
 	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		return apiServer.Start(ctx)
 	})); err != nil {

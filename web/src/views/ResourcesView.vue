@@ -52,6 +52,12 @@
         <option value="Policy">IAM Policies</option>
         <option value="Deployment">Deployments</option>
       </select>
+      <select v-model="selectedTenant" class="filter-select">
+        <option value="">All Tenants</option>
+        <option v-for="tenant in availableTenants" :key="tenant" :value="tenant">
+          {{ tenant }}
+        </option>
+      </select>
     </div>
 
     <!-- Resources List -->
@@ -108,8 +114,7 @@
               label="Sync"
               icon="🔁"
               variant="primary"
-              confirm-message="Are you sure you want to sync this application?"
-              @click="() => handleSyncArgo(resource)"
+              @click="() => openSyncDialog(resource)"
             />
           </template>
 
@@ -153,12 +158,22 @@
       <p>No resources found matching your filters.</p>
     </div>
   </div>
+
+  <!-- Sync Dialog -->
+  <SyncDialog
+    :is-open="syncDialog.isOpen"
+    :app-name="syncDialog.appName"
+    :namespace="syncDialog.namespace"
+    @close="closeSyncDialog"
+    @sync="executeSyncArgo"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { api, type CrossplaneResource } from '../api/client'
 import ActionButton from '../components/ActionButton.vue'
+import SyncDialog from '../components/SyncDialog.vue'
 import { useToast } from '../composables/useToast'
 
 const { success, error: showError } = useToast()
@@ -203,6 +218,15 @@ const error = ref('')
 const searchQuery = ref('')
 const selectedState = ref('')
 const selectedKind = ref('')
+const selectedTenant = ref('')
+
+// Sync dialog state
+const syncDialog = ref({
+  isOpen: false,
+  appName: '',
+  namespace: '',
+  resource: null as Resource | null,
+})
 
 // Role-based permissions (would come from auth context in production)
 const canDelete = ref(true) // TODO: Get from user role
@@ -218,6 +242,17 @@ const stats = computed(() => {
   }
 })
 
+// Computed - Available Tenants (for filter dropdown)
+const availableTenants = computed(() => {
+  const tenants = new Set<string>()
+  resources.value.forEach((r) => {
+    if (r.tenantRef) {
+      tenants.add(r.tenantRef)
+    }
+  })
+  return Array.from(tenants).sort()
+})
+
 // Computed - Filtered Resources
 const filteredResources = computed(() => {
   let filtered = resources.value
@@ -228,7 +263,8 @@ const filteredResources = computed(() => {
       (r) =>
         r.name.toLowerCase().includes(query) ||
         r.kind.toLowerCase().includes(query) ||
-        r.namespace?.toLowerCase().includes(query)
+        r.namespace?.toLowerCase().includes(query) ||
+        r.tenantRef?.toLowerCase().includes(query)
     )
   }
 
@@ -240,7 +276,28 @@ const filteredResources = computed(() => {
     filtered = filtered.filter((r) => r.kind === selectedKind.value)
   }
 
-  return filtered
+  if (selectedTenant.value) {
+    filtered = filtered.filter((r) => r.tenantRef === selectedTenant.value)
+  }
+
+  // Sort resources for consistent display order
+  // Primary: Category (ArgoCD, Crossplane, IAM, Kubernetes)
+  // Secondary: Kind
+  // Tertiary: Name
+  return filtered.sort((a, b) => {
+    // Sort by category first
+    if (a.category !== b.category) {
+      return a.category.localeCompare(b.category)
+    }
+    
+    // Then by kind
+    if (a.kind !== b.kind) {
+      return a.kind.localeCompare(b.kind)
+    }
+    
+    // Finally by name
+    return a.name.localeCompare(b.name)
+  })
 })
 
 // Methods
@@ -291,20 +348,50 @@ const handleRefreshArgo = async (resource: Resource) => {
   }
 }
 
-const handleSyncArgo = async (resource: Resource) => {
+const openSyncDialog = (resource: Resource) => {
+  syncDialog.value = {
+    isOpen: true,
+    appName: resource.name,
+    namespace: resource.namespace || 'argocd',
+    resource,
+  }
+}
+
+const closeSyncDialog = () => {
+  syncDialog.value = {
+    isOpen: false,
+    appName: '',
+    namespace: '',
+    resource: null,
+  }
+}
+
+const executeSyncArgo = async (options: { prune: boolean; force: boolean; dryRun: boolean }) => {
+  const resource = syncDialog.value.resource
+  if (!resource) return
+
   try {
     await api.syncArgoApp({
       name: resource.name,
       namespace: resource.namespace || 'argocd',
-      prune: false,
-      dryRun: false,
+      prune: options.prune,
+      force: options.force,
+      dryRun: options.dryRun,
     })
-    success(`Sync initiated for ${resource.name}`)
-    await loadResources()
+    
+    if (!options.dryRun) {
+      success(`Sync initiated for ${resource.name}`)
+      await loadResources()
+    }
   } catch (e) {
     const err = e as { response?: { data?: { error?: string } }; message: string }
-    showError(`Failed to sync: ${err.response?.data?.error || err.message}`)
+    throw new Error(err.response?.data?.error || err.message)
   }
+}
+
+const handleSyncArgo = async (resource: Resource) => {
+  // Legacy function - now opens dialog instead
+  openSyncDialog(resource)
 }
 
 const handlePauseCrossplane = async (resource: Resource) => {
@@ -536,6 +623,11 @@ onMounted(() => {
   &.badge--crossplane {
     background-color: rgba(59, 130, 246, 0.2);
     color: #93c5fd;
+  }
+
+  &.badge--iam {
+    background-color: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
   }
 
   &.badge--kubernetes {

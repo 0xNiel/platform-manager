@@ -1,334 +1,713 @@
 <template>
   <div class="iam-drift-view">
-    <header class="page-header">
-      <h1 class="page-title">IAM Drift Detection</h1>
-      <p class="page-subtitle">Track drift between Crossplane and AWS IAM resources</p>
-    </header>
-
-    <!-- Summary Cards -->
-    <div class="summary-cards">
-      <div class="summary-card">
-        <div class="card-value">{{ summary.totalRoles }}</div>
-        <div class="card-label">Total Roles</div>
-      </div>
-      <div class="summary-card warning">
-        <div class="card-value">{{ summary.rolesWithDrift }}</div>
-        <div class="card-label">Roles with Drift</div>
-      </div>
-      <div class="summary-card danger">
-        <div class="card-value">{{ summary.extraPrivileges }}</div>
-        <div class="card-label">Extra Privileges</div>
-      </div>
-      <div class="summary-card">
-        <div class="card-value">{{ summary.pausedResources }}</div>
-        <div class="card-label">Paused Resources</div>
-      </div>
+    <div class="header">
+      <h1>IAM Drift Detection</h1>
+      <button 
+        @click="triggerScan" 
+        :disabled="scanning"
+        class="scan-button"
+      >
+        {{ scanning ? 'Scanning...' : 'Trigger Scan' }}
+      </button>
     </div>
 
-    <!-- Drift Table -->
-    <div class="drift-table">
-      <div class="table-header">
-        <h3>IAM Resources</h3>
-        <button class="scan-btn" @click="triggerScan">
-          🔄 Trigger Scan
-        </button>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Resource</th>
-            <th>Tenant</th>
-            <th>Type</th>
-            <th>Drift Status</th>
-            <th>Severity</th>
-            <th>Paused</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="resource in iamResources" :key="resource.id">
-            <td class="resource-name">{{ resource.name }}</td>
-            <td>{{ resource.tenant }}</td>
-            <td>{{ resource.type }}</td>
-            <td>
-              <span class="drift-status" :class="resource.driftType">
-                {{ resource.driftType === 'none' ? 'No Drift' : resource.driftType }}
-              </span>
-            </td>
-            <td>
-              <span class="severity" :class="resource.severity" v-if="resource.severity">
-                {{ resource.severity }}
-              </span>
-              <span v-else>-</span>
-            </td>
-            <td>
-              <span v-if="resource.isPaused" class="paused-badge">Yes</span>
-              <span v-else>No</span>
-            </td>
-            <td>
-              <button class="action-btn" @click="showDiff(resource)" :disabled="resource.driftType === 'none'">
-                View Diff
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-if="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading drift data...</p>
     </div>
 
-    <p class="note">
-      💡 Full IAM drift detection will be implemented in Phase 4
-    </p>
+    <div v-else-if="error" class="error">
+      <p>{{ error }}</p>
+    </div>
+
+    <div v-else class="drift-content">
+      <!-- Platform-wide Summary -->
+      <div class="summary-card">
+        <h2>Platform Summary</h2>
+        <div class="summary-stats">
+          <div class="stat">
+            <span class="stat-label">Total Roles</span>
+            <span class="stat-value">{{ platformSummary.totalRoles }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Total Policies</span>
+            <span class="stat-value">{{ platformSummary.totalPolicies }}</span>
+          </div>
+          <div class="stat critical">
+            <span class="stat-label">Critical Drifts</span>
+            <span class="stat-value">{{ platformSummary.criticalDrifts }}</span>
+          </div>
+          <div class="stat high">
+            <span class="stat-label">High Drifts</span>
+            <span class="stat-value">{{ platformSummary.highDrifts }}</span>
+          </div>
+          <div class="stat warning">
+            <span class="stat-label">Warning Drifts</span>
+            <span class="stat-value">{{ platformSummary.warningDrifts }}</span>
+          </div>
+        </div>
+        <div class="last-checked">
+          Last scanned: {{ formatTime(lastScanTime) }}
+        </div>
+      </div>
+
+      <!-- Tenant Drift List -->
+      <div class="tenants-section">
+        <h2>Tenants</h2>
+        <div v-if="tenants.length === 0" class="no-data">
+          No tenant drift data available. Trigger a scan to start monitoring.
+        </div>
+        <div v-else class="tenant-cards">
+          <div 
+            v-for="tenant in tenants" 
+            :key="tenant.tenantName"
+            class="tenant-card"
+            :class="{ 'has-drift': tenant.rolesWithDrift > 0 || tenant.policiesWithDrift > 0 }"
+            @click="selectTenant(tenant.tenantName)"
+          >
+            <div class="tenant-header">
+              <h3>{{ tenant.tenantName }}</h3>
+              <span 
+                v-if="tenant.rolesWithDrift > 0 || tenant.policiesWithDrift > 0" 
+                class="drift-badge"
+              >
+                {{ tenant.rolesWithDrift + tenant.policiesWithDrift }} drifts
+              </span>
+            </div>
+            <div class="tenant-stats">
+              <div class="stat-row">
+                <span>Roles: {{ tenant.rolesWithDrift }} / {{ tenant.totalRoles }}</span>
+                <span>Policies: {{ tenant.policiesWithDrift }} / {{ tenant.totalPolicies }}</span>
+              </div>
+              <div class="severity-row">
+                <span class="critical">⚠️ {{ tenant.criticalDrifts }}</span>
+                <span class="high">⚡ {{ tenant.highDrifts }}</span>
+                <span class="warning">⚠ {{ tenant.warningDrifts }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Drift View (when tenant selected) -->
+      <div v-if="selectedTenant" class="drift-details">
+        <div class="details-header">
+          <h2>Drift Details: {{ selectedTenant }}</h2>
+          <button @click="selectedTenant = null" class="close-button">Close</button>
+        </div>
+
+        <div v-if="selectedTenantDetails.length === 0" class="no-drift">
+          ✅ No drift detected for this tenant
+        </div>
+
+        <div v-else class="drift-items">
+          <div 
+            v-for="(drift, index) in selectedTenantDetails" 
+            :key="index"
+            class="drift-item"
+            :class="`severity-${drift.severity}`"
+          >
+            <div class="drift-item-header">
+              <div class="resource-info">
+                <span class="resource-type">{{ drift.resourceType }}</span>
+                <span class="resource-name">{{ drift.resourceName }}</span>
+              </div>
+              <span class="severity-badge" :class="`severity-${drift.severity}`">
+                {{ drift.severity }}
+              </span>
+            </div>
+
+            <div v-if="drift.details && drift.details.length > 0" class="drift-findings">
+              <h4>Findings:</h4>
+              <div 
+                v-for="(detail, detailIndex) in drift.details" 
+                :key="detailIndex"
+                class="finding"
+              >
+                <div class="finding-header">
+                  <span class="finding-type">{{ detail.type }}</span>
+                  <span class="finding-severity">{{ detail.severity }}</span>
+                </div>
+                <p class="finding-message">{{ detail.message }}</p>
+                <div v-if="detail.path" class="finding-path">
+                  Path: <code>{{ detail.path }}</code>
+                </div>
+                <div v-if="detail.diff" class="finding-diff">
+                  <pre>{{ detail.diff }}</pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="drift-timestamp">
+              Checked: {{ formatTime(drift.checkedAt) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref, onMounted } from 'vue'
+import axios from 'axios'
 
-interface IAMResource {
-  id: string
-  name: string
-  tenant: string
-  type: 'Role' | 'Policy'
-  driftType: 'none' | 'extra_privileges' | 'missing_privileges' | 'mixed'
-  severity: 'critical' | 'high' | 'medium' | 'low' | null
-  isPaused: boolean
+interface TenantDriftSummary {
+  tenantName: string
+  totalRoles: number
+  totalPolicies: number
+  rolesWithDrift: number
+  policiesWithDrift: number
+  criticalDrifts: number
+  highDrifts: number
+  warningDrifts: number
+  lastChecked: string
+}
+
+interface PlatformDriftSummary {
+  totalRoles: number
+  totalPolicies: number
+  rolesWithDrift: number
+  policiesWithDrift: number
+  criticalDrifts: number
+  highDrifts: number
+  warningDrifts: number
+  lastChecked: string
+}
+
+interface DriftResult {
+  resourceType: string
+  resourceName: string
+  resourceArn?: string
+  tenantName: string
+  hasDrift: boolean
+  severity: string
+  driftTypes?: string[]
+  details?: Array<{
+    type: string
+    severity: string
+    path?: string
+    message: string
+    diff?: string
+  }>
+  checkedAt: string
+  error?: string
 }
 
 export default defineComponent({
   name: 'IAMDriftView',
   setup() {
-    const summary = ref({
-      totalRoles: 4,
-      rolesWithDrift: 2,
-      extraPrivileges: 1,
-      pausedResources: 1,
+    const loading = ref(true)
+    const error = ref('')
+    const scanning = ref(false)
+    const platformSummary = ref<PlatformDriftSummary>({
+      totalRoles: 0,
+      totalPolicies: 0,
+      rolesWithDrift: 0,
+      policiesWithDrift: 0,
+      criticalDrifts: 0,
+      highDrifts: 0,
+      warningDrifts: 0,
+      lastChecked: '',
+    })
+    const tenants = ref<TenantDriftSummary[]>([])
+    const lastScanTime = ref<string>('')
+    const selectedTenant = ref<string | null>(null)
+    const selectedTenantDetails = ref<DriftResult[]>([])
+
+    const API_BASE = 'http://localhost:9080/api/v1'
+
+    const loadDriftData = async () => {
+      try {
+        loading.value = true
+        error.value = ''
+
+        // Load platform summary
+        const platformResponse = await axios.get(`${API_BASE}/iam/drift/platform`)
+        platformSummary.value = platformResponse.data.summary || {}
+        lastScanTime.value = platformResponse.data.lastScanTime || ''
+
+        // Load tenant summaries
+        const tenantsResponse = await axios.get(`${API_BASE}/iam/drift/tenants`)
+        tenants.value = tenantsResponse.data.tenants || []
+      } catch (err: unknown) {
+        const errorMessage = axios.isAxiosError(err) 
+          ? err.response?.data?.message || err.message 
+          : 'Failed to load drift data'
+        error.value = errorMessage
+        console.error('Failed to load drift data:', err)
+      } finally {
+        loading.value = false
+      }
+    }
+
+    const triggerScan = async () => {
+      try {
+        scanning.value = true
+        await axios.post(`${API_BASE}/iam/drift/scan`)
+        
+        // Wait a moment then reload
+        setTimeout(loadDriftData, 2000)
+      } catch (err: unknown) {
+        const errorMessage = axios.isAxiosError(err)
+          ? err.response?.data?.message || err.message
+          : 'Failed to trigger scan'
+        error.value = errorMessage
+        console.error('Failed to trigger scan:', err)
+      } finally {
+        scanning.value = false
+      }
+    }
+
+    const selectTenant = async (tenantName: string) => {
+      selectedTenant.value = tenantName
+      
+      try {
+        const response = await axios.get(`${API_BASE}/iam/drift/tenants/${tenantName}`)
+        selectedTenantDetails.value = response.data.details || []
+      } catch (err: unknown) {
+        console.error('Failed to load tenant details:', err)
+        selectedTenantDetails.value = []
+      }
+    }
+
+    const formatTime = (timestamp: string) => {
+      if (!timestamp) return 'Never'
+      const date = new Date(timestamp)
+      return date.toLocaleString()
+    }
+
+    onMounted(() => {
+      loadDriftData()
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(loadDriftData, 30000)
+      return () => clearInterval(interval)
     })
 
-    // Mock data - will be replaced with API calls
-    const iamResources = ref<IAMResource[]>([
-      { id: '1', name: 'tenant-alpha-lambda-role', tenant: 'alpha', type: 'Role', driftType: 'extra_privileges', severity: 'critical', isPaused: false },
-      { id: '2', name: 'tenant-alpha-s3-policy', tenant: 'alpha', type: 'Policy', driftType: 'none', severity: null, isPaused: false },
-      { id: '3', name: 'tenant-beta-data-role', tenant: 'beta', type: 'Role', driftType: 'none', severity: null, isPaused: true },
-      { id: '4', name: 'tenant-beta-dynamodb-policy', tenant: 'beta', type: 'Policy', driftType: 'missing_privileges', severity: 'medium', isPaused: false },
-    ])
-
-    const triggerScan = () => {
-      alert('Scan triggered! (Will be implemented in Phase 4)')
-    }
-
-    const showDiff = (resource: IAMResource) => {
-      alert(`Showing diff for ${resource.name} (Will be implemented in Phase 4)`)
-    }
-
     return {
-      summary,
-      iamResources,
+      loading,
+      error,
+      scanning,
+      platformSummary,
+      tenants,
+      lastScanTime,
+      selectedTenant,
+      selectedTenantDetails,
+      loadDriftData,
       triggerScan,
-      showDiff,
+      selectTenant,
+      formatTime,
     }
   },
 })
 </script>
 
-<style lang="scss" scoped>
+<style scoped lang="scss">
 .iam-drift-view {
   max-width: 1400px;
   margin: 0 auto;
 }
 
-.page-header {
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary, #e2e8f0);
+    margin: 0;
+  }
 }
 
-.page-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary, #e2e8f0);
-  margin: 0 0 0.5rem 0;
+.scan-button {
+  padding: 0.75rem 1.5rem;
+  background: var(--accent-primary, #3b82f6);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--accent-hover, #2563eb);
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    background: var(--bg-tertiary, #334155);
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
-.page-subtitle {
+.loading, .error, .no-data {
+  text-align: center;
+  padding: 3rem;
   color: var(--text-secondary, #94a3b8);
-  margin: 0;
 }
 
-.summary-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--bg-tertiary, #334155);
+  border-top: 4px solid var(--accent-primary, #3b82f6);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .summary-card {
   background: var(--bg-secondary, #1e293b);
-  border-radius: 0.75rem;
   border: 1px solid var(--border-color, #334155);
+  border-radius: 0.75rem;
   padding: 1.5rem;
-  text-align: center;
-
-  .card-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--text-primary, #e2e8f0);
-  }
-
-  .card-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary, #94a3b8);
-    margin-top: 0.5rem;
-  }
-
-  &.warning .card-value {
-    color: #f59e0b;
-  }
-
-  &.danger .card-value {
-    color: #ef4444;
-  }
-}
-
-.drift-table {
-  background: var(--bg-secondary, #1e293b);
-  border-radius: 0.75rem;
-  border: 1px solid var(--border-color, #334155);
-  overflow: hidden;
   margin-bottom: 2rem;
 
-  .table-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border-color, #334155);
-
-    h3 {
-      margin: 0;
-      font-size: 1rem;
-      color: var(--text-primary, #e2e8f0);
-    }
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  th {
-    text-align: left;
-    padding: 1rem 1.5rem;
-    font-size: 0.75rem;
+  h2 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.25rem;
     font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-secondary, #94a3b8);
-    background: var(--bg-tertiary, #0f172a);
-    border-bottom: 1px solid var(--border-color, #334155);
-  }
-
-  td {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border-color, #334155);
-  }
-
-  tr:last-child td {
-    border-bottom: none;
+    color: var(--text-primary, #e2e8f0);
   }
 }
 
-.resource-name {
-  font-weight: 500;
-  color: var(--text-primary, #e2e8f0);
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
-.drift-status {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-
-  &.none {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-  }
-
-  &.extra_privileges {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-  }
-
-  &.missing_privileges {
-    background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
-  }
-
-  &.mixed {
-    background: rgba(139, 92, 246, 0.1);
-    color: #8b5cf6;
-  }
-}
-
-.severity {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: capitalize;
+.stat {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  background: var(--bg-tertiary, #0f172a);
+  border-radius: 0.5rem;
+  border-left: 4px solid var(--accent-primary, #3b82f6);
 
   &.critical {
+    border-left-color: #ef4444;
     background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
   }
 
   &.high {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-  }
-
-  &.medium {
+    border-left-color: #f59e0b;
     background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
   }
 
-  &.low {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+  &.warning {
+    border-left-color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
   }
 }
 
-.paused-badge {
-  color: #8b5cf6;
-  font-weight: 600;
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.scan-btn,
-.action-btn {
-  padding: 0.5rem 1rem;
-  background: var(--bg-tertiary, #0f172a);
-  border: 1px solid var(--border-color, #334155);
-  border-radius: 0.375rem;
+.stat-value {
+  font-size: 1.875rem;
+  font-weight: 700;
   color: var(--text-primary, #e2e8f0);
+}
+
+.last-checked {
   font-size: 0.875rem;
+  color: var(--text-secondary, #94a3b8);
+  margin-top: 0.75rem;
+}
+
+.tenants-section {
+  margin-bottom: 2rem;
+
+  h2 {
+    margin-bottom: 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary, #e2e8f0);
+  }
+}
+
+.tenant-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.tenant-card {
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
 
-  &:hover:not(:disabled) {
-    background: var(--bg-hover, #334155);
+  &:hover {
+    transform: translateY(-2px);
     border-color: var(--accent-primary, #3b82f6);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  &.has-drift {
+    border-left: 4px solid #ef4444;
   }
 }
 
-.note {
-  text-align: center;
-  color: var(--text-secondary, #94a3b8);
-  padding: 1rem;
+.tenant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary, #e2e8f0);
+  }
+}
+
+.drift-badge {
+  background: #ef4444;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tenant-stats {
+  .stat-row, .severity-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #94a3b8);
+  }
+
+  .severity-row {
+    span {
+      font-weight: 700;
+
+      &.critical { color: #ef4444; }
+      &.high { color: #f59e0b; }
+      &.warning { color: #fbbf24; }
+    }
+  }
+}
+
+.drift-details {
   background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary, #e2e8f0);
+  }
+}
+
+.close-button {
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary, #334155);
+  color: var(--text-primary, #e2e8f0);
+  border: none;
   border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--bg-hover, #475569);
+  }
+}
+
+.drift-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.drift-item {
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  background: var(--bg-tertiary, #0f172a);
+
+  &.severity-critical {
+    border-left: 4px solid #ef4444;
+  }
+
+  &.severity-high {
+    border-left: 4px solid #f59e0b;
+  }
+
+  &.severity-warning {
+    border-left: 4px solid #fbbf24;
+  }
+}
+
+.drift-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.resource-info {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+
+  .resource-type {
+    background: rgba(59, 130, 246, 0.2);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #60a5fa;
+    text-transform: uppercase;
+  }
+
+  .resource-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, #e2e8f0);
+  }
+}
+
+.severity-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+
+  &.severity-critical {
+    background: #ef4444;
+    color: white;
+  }
+
+  &.severity-high {
+    background: #f59e0b;
+    color: white;
+  }
+
+  &.severity-warning {
+    background: #fbbf24;
+    color: #1e293b;
+  }
+}
+
+.drift-findings {
+  margin-top: 1rem;
+
+  h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary, #94a3b8);
+    text-transform: uppercase;
+  }
+}
+
+.finding {
+  background: rgba(15, 23, 42, 0.5);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border-color, #334155);
+}
+
+.finding-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+
+  .finding-type {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #60a5fa;
+    text-transform: uppercase;
+  }
+
+  .finding-severity {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #94a3b8);
+  }
+}
+
+.finding-message {
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--text-primary, #e2e8f0);
+  line-height: 1.5;
+}
+
+.finding-path {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+
+  code {
+    background: var(--bg-secondary, #1e293b);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    color: #22d3ee;
+  }
+}
+
+.finding-diff {
+  margin-top: 0.75rem;
+
+  pre {
+    background: var(--bg-secondary, #1e293b);
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    color: var(--text-primary, #e2e8f0);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+}
+
+.drift-timestamp {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.no-drift {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.125rem;
+  color: #22c55e;
 }
 </style>
 

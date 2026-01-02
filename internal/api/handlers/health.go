@@ -22,6 +22,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	platformv1alpha1 "github.com/platform-manager/platform-manager/api/v1alpha1"
@@ -61,11 +62,20 @@ type PlatformHealthResponse struct {
 	CriticalTenants     int                           `json:"criticalTenants"`
 	CrossplaneResources ResourceStateCountsResponse   `json:"crossplaneResources"`
 	KubernetesResources ResourceStateCountsResponse   `json:"kubernetesResources"`
+	Crossplane          *CrossplaneSummaryResponse    `json:"crossplane,omitempty"`
 	TotalIAMDrift       int                           `json:"totalIamDrift"`
 	ArgoSummary         ArgoSummaryResponse           `json:"argoSummary"`
 	Tenants             []TenantHealthSummaryResponse `json:"tenants"`
 	TopIssues           []IssueResponse               `json:"topIssues"`
 	LastUpdated         string                        `json:"lastUpdated,omitempty"`
+}
+
+// CrossplaneSummaryResponse represents Crossplane-specific summary metrics
+type CrossplaneSummaryResponse struct {
+	Compositions int `json:"compositions"`
+	Claims       int `json:"claims"`
+	XRs          int `json:"xrs"`
+	Failed       int `json:"failed"`
 }
 
 // ResourceStateCountsResponse represents resource state counts in API response
@@ -249,6 +259,9 @@ func (h *HealthHandler) aggregatePlatformHealth(ctx context.Context) *PlatformHe
 		response.OverallHealth = string(platformv1alpha1.HealthLevelUnknown)
 	}
 
+	// Add Crossplane-specific stats
+	response.Crossplane = h.getCrossplaneSummary(ctx)
+
 	return response
 }
 
@@ -426,4 +439,57 @@ func (h *HealthHandler) tenantHealthToResponse(th *platformv1alpha1.TenantHealth
 	}
 
 	return response
+}
+
+// getCrossplaneSummary queries the cluster for Crossplane-specific resources
+func (h *HealthHandler) getCrossplaneSummary(ctx context.Context) *CrossplaneSummaryResponse {
+	summary := &CrossplaneSummaryResponse{
+		Compositions: 0,
+		Claims:       0,
+		XRs:          0,
+		Failed:       0,
+	}
+
+	// Count Compositions using unstructured
+	compositions := &unstructured.UnstructuredList{}
+	compositions.SetAPIVersion("apiextensions.crossplane.io/v1")
+	compositions.SetKind("CompositionList")
+	if err := h.client.List(ctx, compositions); err == nil {
+		summary.Compositions = len(compositions.Items)
+	}
+
+	// Count TenantIAMBundle XRs (cluster-scoped composite resources)
+	xrs := &unstructured.UnstructuredList{}
+	xrs.SetAPIVersion("platform.io/v1alpha1")
+	xrs.SetKind("TenantIAMBundleList")
+	if err := h.client.List(ctx, xrs); err == nil {
+		summary.XRs = len(xrs.Items)
+		// Count failed XRs by checking Ready condition
+		for _, item := range xrs.Items {
+			status, found, _ := unstructured.NestedMap(item.Object, "status")
+			if found {
+				conditions, found, _ := unstructured.NestedSlice(status, "conditions")
+				if found {
+					for _, cond := range conditions {
+						if condMap, ok := cond.(map[string]interface{}); ok {
+							if condMap["type"] == "Ready" && condMap["status"] == "False" {
+								summary.Failed++
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Count Claims (namespaced)
+	claims := &unstructured.UnstructuredList{}
+	claims.SetAPIVersion("platform.io/v1alpha1")
+	claims.SetKind("TenantIAMBundleClaimList")
+	if err := h.client.List(ctx, claims); err == nil {
+		summary.Claims = len(claims.Items)
+	}
+
+	return summary
 }

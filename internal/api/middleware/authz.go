@@ -18,7 +18,7 @@ package middleware
 
 import (
 	"net/http"
-	
+
 	"github.com/platform-manager/platform-manager/internal/metrics"
 )
 
@@ -72,7 +72,7 @@ func RequireCapability(cap Capability) func(http.Handler) http.Handler {
 				if actionName != "" {
 					metrics.ActionsMetrics.RecordAuthDenial(actionName, string(user.Role))
 				}
-				
+
 				http.Error(w, `{"error": "Forbidden: insufficient permissions"}`, http.StatusForbidden)
 				return
 			}

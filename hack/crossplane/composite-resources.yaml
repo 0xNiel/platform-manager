@@ -1,0 +1,238 @@
+# hack/crossplane/composite-resources.yaml
+# Composite Resources (XRs) and Compositions for advanced Crossplane testing
+# These demonstrate how to create higher-level abstractions over Managed Resources
+---
+# CompositeResourceDefinition (XRD) for a complete ML Platform
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xmlplatforms.platform.io
+spec:
+  group: platform.io
+  names:
+    kind: XMLPlatform
+    plural: xmlplatforms
+  claimNames:
+    kind: MLPlatformClaim
+    plural: mlplatformclaims
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                tenantName:
+                  type: string
+                  description: Name of the tenant
+                environment:
+                  type: string
+                  description: Environment (dev, staging, prod)
+                  enum: [dev, staging, prod]
+                mlConfig:
+                  type: object
+                  properties:
+                    modelBucketSize:
+                      type: integer
+                      description: Size of the model bucket in GB
+                    enableVersioning:
+                      type: boolean
+                      description: Enable versioning for ML models
+              required:
+                - tenantName
+                - environment
+            status:
+              type: object
+              properties:
+                bucketArn:
+                  type: string
+                tableArn:
+                  type: string
+                roleArn:
+                  type: string
+---
+# Composition that creates multiple AWS resources for ML Platform
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: mlplatform-localstack
+  labels:
+    provider: aws
+    environment: localstack
+spec:
+  compositeTypeRef:
+    apiVersion: platform.io/v1alpha1
+    kind: XMLPlatform
+  
+  resources:
+    # S3 Bucket for ML Models
+    - name: model-bucket
+      base:
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: Bucket
+        spec:
+          providerConfigRef:
+            name: localstack
+          forProvider:
+            region: us-east-1
+      patches:
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ml-models"
+        - fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.tags.tenant
+        - fromFieldPath: spec.environment
+          toFieldPath: spec.forProvider.tags.environment
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.arn
+          toFieldPath: status.bucketArn
+    
+    # DynamoDB Table for ML Metadata
+    - name: metadata-table
+      base:
+        apiVersion: dynamodb.aws.upbound.io/v1beta2
+        kind: Table
+        spec:
+          providerConfigRef:
+            name: localstack
+          forProvider:
+            region: us-east-1
+            billingMode: PAY_PER_REQUEST
+            attribute:
+              - name: modelId
+                type: S
+              - name: version
+                type: N
+            hashKey: modelId
+            rangeKey: version
+      patches:
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ml-metadata"
+        - fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.tags.tenant
+        - fromFieldPath: spec.environment
+          toFieldPath: spec.forProvider.tags.environment
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.arn
+          toFieldPath: status.tableArn
+    
+    # IAM Role for ML Service
+    - name: ml-service-role
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        spec:
+          providerConfigRef:
+            name: localstack
+          forProvider:
+            assumeRolePolicy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": "lambda.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              }
+      patches:
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ml-service"
+        - fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.tags.tenant
+        - fromFieldPath: spec.environment
+          toFieldPath: spec.forProvider.tags.environment
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.arn
+          toFieldPath: status.roleArn
+    
+    # IAM Policy for S3 and DynamoDB Access
+    - name: ml-service-policy
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Policy
+        spec:
+          providerConfigRef:
+            name: localstack
+      patches:
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ml-service-policy"
+        - fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.policy
+          transforms:
+            - type: string
+              string:
+                fmt: |
+                  {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "s3:GetObject",
+                          "s3:PutObject",
+                          "s3:ListBucket"
+                        ],
+                        "Resource": [
+                          "arn:aws:s3:::%s-ml-models",
+                          "arn:aws:s3:::%s-ml-models/*"
+                        ]
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "dynamodb:GetItem",
+                          "dynamodb:PutItem",
+                          "dynamodb:Query"
+                        ],
+                        "Resource": "arn:aws:dynamodb:*:*:table/%s-ml-metadata"
+                      }
+                    ]
+                  }
+        - fromFieldPath: spec.tenantName
+          toFieldPath: spec.forProvider.tags.tenant
+---
+# Example Claims for testing
+apiVersion: platform.io/v1alpha1
+kind: MLPlatformClaim
+metadata:
+  name: gamma-ml-platform
+  namespace: tenant-gamma
+  labels:
+    platform.io/tenant: tenant-gamma
+spec:
+  tenantName: tenant-gamma
+  environment: dev
+  mlConfig:
+    modelBucketSize: 100
+    enableVersioning: true
+  compositionSelector:
+    matchLabels:
+      environment: localstack
+  resourceRef:
+    apiVersion: platform.io/v1alpha1
+    kind: XMLPlatform
+    name: gamma-ml-platform
+

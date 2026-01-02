@@ -226,13 +226,21 @@ export default defineComponent({
           }
         }
         
-        // Update IAM Drift stats
-        if (health.iamDrift) {
-          iamDrift.value = {
-            totalRoles: health.iamDrift.totalRoles || 0,
-            rolesWithDrift: health.iamDrift.rolesWithDrift || 0,
-            extraPrivileges: health.iamDrift.extraPrivileges || 0,
+        // Update IAM Drift stats from dedicated endpoint
+        try {
+          const driftResponse = await fetch('http://localhost:9080/api/v1/iam/drift/platform')
+          if (driftResponse.ok) {
+            const driftData = await driftResponse.json()
+            if (driftData.summary) {
+              iamDrift.value = {
+                totalRoles: driftData.summary.totalRoles || 0,
+                rolesWithDrift: driftData.summary.rolesWithDrift || 0,
+                extraPrivileges: driftData.summary.criticalDrifts || 0, // Map critical drifts to extra privileges
+              }
+            }
           }
+        } catch (driftError) {
+          console.error('Failed to load IAM drift data:', driftError)
         }
       } catch (error) {
         console.error('Failed to load platform health:', error)

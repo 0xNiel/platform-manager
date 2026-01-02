@@ -56,6 +56,7 @@ type ArgoSyncRequest struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 	Prune     bool   `json:"prune"`
+	Force     bool   `json:"force"`
 	DryRun    bool   `json:"dryRun"`
 }
 
@@ -149,22 +150,26 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if already syncing
-	operation, found, _ := unstructured.NestedMap(app.Object, "operation")
-	if found && operation != nil {
-		msg := "Application already has an operation in progress"
-		actionsLog.Info(msg, "name", req.Name)
-		actionErr = errors.New("operation in progress")
-		h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, actionErr)
-		WriteError(w, http.StatusConflict, msg)
-		return
+	// Check if already syncing (unless force is specified)
+	if !req.Force {
+		operation, found, _ := unstructured.NestedMap(app.Object, "operation")
+		if found && operation != nil {
+			msg := "Application already has an operation in progress. Use force sync to override."
+			actionsLog.Info(msg, "name", req.Name)
+			actionErr = errors.New("operation in progress")
+			h.auditLogger.LogAction(ctx, "argo:sync", req.Name, false, actionErr)
+			WriteError(w, http.StatusConflict, msg)
+			return
+		}
 	}
 
 	// Set sync operation
 	syncOperation := map[string]interface{}{
 		"sync": map[string]interface{}{
 			"syncStrategy": map[string]interface{}{
-				"hook": map[string]interface{}{},
+				"hook": map[string]interface{}{
+					"force": req.Force,
+				},
 			},
 			"prune":  req.Prune,
 			"dryRun": req.DryRun,
@@ -188,7 +193,7 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actionsLog.Info("Successfully initiated sync", "name", req.Name, "prune", req.Prune, "dryRun", req.DryRun)
+	actionsLog.Info("Successfully initiated sync", "name", req.Name, "prune", req.Prune, "force", req.Force, "dryRun", req.DryRun)
 	h.auditLogger.LogAction(ctx, "argo:sync", req.Name, true, nil)
 
 	WriteJSON(w, http.StatusOK, ActionResponse{
@@ -198,6 +203,7 @@ func (h *ActionsHandler) SyncArgoApp(w http.ResponseWriter, r *http.Request) {
 			"application": req.Name,
 			"namespace":   req.Namespace,
 			"prune":       req.Prune,
+			"force":       req.Force,
 			"dryRun":      req.DryRun,
 		},
 	})

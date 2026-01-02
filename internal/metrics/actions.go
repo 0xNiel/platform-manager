@@ -59,8 +59,8 @@ func NewActionMetrics() *ActionMetrics {
 		),
 		actionDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "platform_manager_action_duration_seconds",
-				Help: "Duration of action operations in seconds",
+				Name:    "platform_manager_action_duration_seconds",
+				Help:    "Duration of action operations in seconds",
 				Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0},
 			},
 			[]string{"action"},
@@ -105,11 +105,10 @@ func (m *ActionMetrics) RecordAuthDenial(action string, userRole string) {
 
 // Action name constants for consistency
 const (
-	ActionArgoSync              = "argo_sync"
-	ActionArgoRefresh           = "argo_refresh"
-	ActionCrossplanePause       = "crossplane_pause"
-	ActionCrossplaneUnpause     = "crossplane_unpause"
-	ActionCrossplaneReconcile   = "crossplane_reconcile"
-	ActionResourceDelete        = "resource_delete"
+	ActionArgoSync            = "argo_sync"
+	ActionArgoRefresh         = "argo_refresh"
+	ActionCrossplanePause     = "crossplane_pause"
+	ActionCrossplaneUnpause   = "crossplane_unpause"
+	ActionCrossplaneReconcile = "crossplane_reconcile"
+	ActionResourceDelete      = "resource_delete"
 )
-

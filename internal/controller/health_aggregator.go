@@ -21,6 +21,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -32,6 +33,7 @@ type HealthAggregator struct {
 	client            client.Client
 	crossplaneWatcher *CrossplaneWatcher
 	argoWatcher       *ArgoWatcher
+	iamScanner        *IAMDriftScanner
 }
 
 // NewHealthAggregator creates a new HealthAggregator
@@ -40,7 +42,13 @@ func NewHealthAggregator(c client.Client) *HealthAggregator {
 		client:            c,
 		crossplaneWatcher: NewCrossplaneWatcher(c),
 		argoWatcher:       NewArgoWatcher(c),
+		iamScanner:        nil, // Will be set later via SetIAMScanner
 	}
+}
+
+// SetIAMScanner sets the IAM drift scanner
+func (a *HealthAggregator) SetIAMScanner(scanner *IAMDriftScanner) {
+	a.iamScanner = scanner
 }
 
 // AggregateHealth aggregates health information for a tenant
@@ -65,12 +73,37 @@ func (a *HealthAggregator) AggregateHealth(ctx context.Context, tenant *platform
 	}
 	status.KubernetesResources = k8sCounts
 
-	// Scan IAM resources for drift summary
-	iamSummary, err := a.crossplaneWatcher.ScanIAMResources(ctx, tenant)
-	if err != nil {
-		log.Error(err, "Failed to scan IAM resources")
+	// Get IAM drift from scanner if available
+	if a.iamScanner != nil {
+		tenantDrift, ok := a.iamScanner.GetTenantSummary(tenant.Name)
+		if ok {
+			// Convert IAM scanner summary to TenantHealth IAMDriftSummary
+			lastChecked := metav1.NewTime(tenantDrift.LastChecked)
+			status.IAMDrift = platformv1alpha1.IAMDriftSummary{
+				TotalRoles:        tenantDrift.TotalRoles,
+				TotalPolicies:     tenantDrift.TotalPolicies,
+				RolesWithDrift:    tenantDrift.RolesWithDrift,
+				PoliciesWithDrift: tenantDrift.PoliciesWithDrift,
+				ExtraPrivileges:   tenantDrift.CriticalDrifts, // Critical drifts are extra privileges
+				MissingPrivileges: tenantDrift.HighDrifts,     // High drifts are missing privileges
+				LastChecked:       &lastChecked,
+			}
+		} else {
+			// Fall back to basic counting if drift scanner hasn't run yet
+			iamSummary, err := a.crossplaneWatcher.ScanIAMResources(ctx, tenant)
+			if err != nil {
+				log.Error(err, "Failed to scan IAM resources")
+			}
+			status.IAMDrift = iamSummary
+		}
+	} else {
+		// Fall back to basic counting if no scanner available
+		iamSummary, err := a.crossplaneWatcher.ScanIAMResources(ctx, tenant)
+		if err != nil {
+			log.Error(err, "Failed to scan IAM resources")
+		}
+		status.IAMDrift = iamSummary
 	}
-	status.IAMDrift = iamSummary
 
 	// Scan ArgoCD applications
 	argoSummary, err := a.argoWatcher.ScanArgoApplications(ctx, tenant)

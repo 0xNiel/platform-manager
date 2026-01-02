@@ -10,6 +10,7 @@
         <router-link to="/tenants" class="nav-link">Tenants</router-link>
         <router-link to="/resources" class="nav-link">Resources</router-link>
         <router-link to="/iam" class="nav-link">IAM Drift</router-link>
+        <router-link to="/troubleshooting" class="nav-link">Troubleshooting</router-link>
       </div>
     </nav>
     <main class="main-content">

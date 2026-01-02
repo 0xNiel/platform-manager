@@ -33,6 +33,12 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('../views/IAMDriftView.vue'),
     meta: { title: 'IAM Drift' },
   },
+  {
+    path: '/troubleshooting',
+    name: 'troubleshooting',
+    component: () => import('../views/TroubleshootingView.vue'),
+    meta: { title: 'Troubleshooting' },
+  },
 ]
 
 const router = createRouter({
