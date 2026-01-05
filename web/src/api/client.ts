@@ -94,6 +94,7 @@ export interface CrossplaneSummary {
   claims: number
   xrs: number
   failed: number
+  paused: number
 }
 
 export interface ArgoSummary {
@@ -102,6 +103,9 @@ export interface ArgoSummary {
   outOfSync: number
   healthy: number
   degraded: number
+  autoSyncOff: number
+  pruneOff: number
+  selfHealOff: number
 }
 
 export interface IAMDriftSummary {

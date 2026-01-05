@@ -76,6 +76,7 @@ type CrossplaneSummaryResponse struct {
 	Claims       int `json:"claims"`
 	XRs          int `json:"xrs"`
 	Failed       int `json:"failed"`
+	Paused       int `json:"paused"` // Managed resources with crossplane.io/paused annotation
 }
 
 // ResourceStateCountsResponse represents resource state counts in API response
@@ -98,6 +99,9 @@ type ArgoSummaryResponse struct {
 	Progressing int `json:"progressing"`
 	Missing     int `json:"missing"`
 	Suspended   int `json:"suspended"`
+	AutoSyncOff int `json:"autoSyncOff"` // Apps with auto-sync disabled
+	PruneOff    int `json:"pruneOff"`    // Apps with prune disabled
+	SelfHealOff int `json:"selfHealOff"` // Apps with self-heal disabled
 }
 
 // TenantHealthSummaryResponse represents a tenant health summary in API response
@@ -261,6 +265,9 @@ func (h *HealthHandler) aggregatePlatformHealth(ctx context.Context) *PlatformHe
 
 	// Add Crossplane-specific stats
 	response.Crossplane = h.getCrossplaneSummary(ctx)
+
+	// Add ArgoCD sync policy stats
+	h.enrichArgoSyncPolicyStats(ctx, &response.ArgoSummary)
 
 	return response
 }
@@ -448,6 +455,7 @@ func (h *HealthHandler) getCrossplaneSummary(ctx context.Context) *CrossplaneSum
 		Claims:       0,
 		XRs:          0,
 		Failed:       0,
+		Paused:       0,
 	}
 
 	// Count Compositions using unstructured
@@ -491,5 +499,68 @@ func (h *HealthHandler) getCrossplaneSummary(ctx context.Context) *CrossplaneSum
 		summary.Claims = len(claims.Items)
 	}
 
+	// Count paused Crossplane Managed Resources
+	// Check ResourceSummaries with category=Crossplane or IAM and state=Paused
+	resourceSummaryList := &platformv1alpha1.ResourceSummaryList{}
+	if err := h.client.List(ctx, resourceSummaryList); err == nil {
+		for _, rs := range resourceSummaryList.Items {
+			if (rs.Spec.Category == platformv1alpha1.ResourceCategoryCrossplane ||
+				rs.Spec.Category == platformv1alpha1.ResourceCategoryIAM) &&
+				rs.Status.State == "Paused" {
+				summary.Paused++
+			}
+		}
+	}
+
 	return summary
+}
+
+// enrichArgoSyncPolicyStats queries ArgoCD Applications and counts sync policy settings
+func (h *HealthHandler) enrichArgoSyncPolicyStats(ctx context.Context, argoSummary *ArgoSummaryResponse) {
+	// Query all ArgoCD Applications
+	apps := &unstructured.UnstructuredList{}
+	apps.SetAPIVersion("argoproj.io/v1alpha1")
+	apps.SetKind("ApplicationList")
+
+	if err := h.client.List(ctx, apps); err != nil {
+		// If we can't list apps, just return (counts stay at 0)
+		return
+	}
+
+	for _, app := range apps.Items {
+		spec, found, _ := unstructured.NestedMap(app.Object, "spec")
+		if !found {
+			continue
+		}
+
+		// Check syncPolicy
+		syncPolicy, found, _ := unstructured.NestedMap(spec, "syncPolicy")
+		if !found {
+			// No syncPolicy defined = auto-sync off, prune off, self-heal off
+			argoSummary.AutoSyncOff++
+			argoSummary.PruneOff++
+			argoSummary.SelfHealOff++
+			continue
+		}
+
+		// Check automated sync
+		automated, found, _ := unstructured.NestedMap(syncPolicy, "automated")
+		if !found {
+			// No automated section = auto-sync off
+			argoSummary.AutoSyncOff++
+			argoSummary.PruneOff++
+			argoSummary.SelfHealOff++
+			continue
+		}
+
+		// Check prune
+		if prune, found := automated["prune"].(bool); !found || !prune {
+			argoSummary.PruneOff++
+		}
+
+		// Check selfHeal
+		if selfHeal, found := automated["selfHeal"].(bool); !found || !selfHeal {
+			argoSummary.SelfHealOff++
+		}
+	}
 }

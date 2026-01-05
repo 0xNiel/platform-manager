@@ -74,7 +74,11 @@
             <span class="metric-label">XRs</span>
             <span class="metric-value">{{ crossplane.xrs }}</span>
           </div>
-          <div class="metric-row warning" v-if="crossplane.failed > 0">
+          <div class="metric-row warning" v-if="crossplane.paused > 0">
+            <span class="metric-label">Paused</span>
+            <span class="metric-value">{{ crossplane.paused }}</span>
+          </div>
+          <div class="metric-row danger" v-if="crossplane.failed > 0">
             <span class="metric-label">Failed</span>
             <span class="metric-value">{{ crossplane.failed }}</span>
           </div>
@@ -102,6 +106,18 @@
           <div class="metric-row danger" v-if="argo.degraded > 0">
             <span class="metric-label">Degraded</span>
             <span class="metric-value">{{ argo.degraded }}</span>
+          </div>
+          <div class="metric-row warning" v-if="argo.autoSyncOff > 0">
+            <span class="metric-label">Auto-Sync Off</span>
+            <span class="metric-value">{{ argo.autoSyncOff }}</span>
+          </div>
+          <div class="metric-row warning" v-if="argo.pruneOff > 0">
+            <span class="metric-label">Prune Off</span>
+            <span class="metric-value">{{ argo.pruneOff }}</span>
+          </div>
+          <div class="metric-row warning" v-if="argo.selfHealOff > 0">
+            <span class="metric-label">Self-Heal Off</span>
+            <span class="metric-value">{{ argo.selfHealOff }}</span>
           </div>
         </div>
       </div>
@@ -169,6 +185,7 @@ export default defineComponent({
       claims: 0,
       xrs: 0,
       failed: 0,
+      paused: 0,
     })
 
     const argo = ref({
@@ -176,6 +193,9 @@ export default defineComponent({
       synced: 0,
       outOfSync: 0,
       degraded: 0,
+      autoSyncOff: 0,
+      pruneOff: 0,
+      selfHealOff: 0,
     })
 
     const iamDrift = ref({
@@ -210,6 +230,7 @@ export default defineComponent({
             claims: health.crossplane.claims || 0,
             xrs: health.crossplane.xrs || 0,
             failed: health.crossplane.failed || 0,
+            paused: health.crossplane.paused || 0,
           }
         }
         
@@ -222,6 +243,9 @@ export default defineComponent({
               synced: argoData.synced || 0,
               outOfSync: argoData.outOfSync || 0,
               degraded: argoData.degraded || 0,
+              autoSyncOff: argoData.autoSyncOff || 0,
+              pruneOff: argoData.pruneOff || 0,
+              selfHealOff: argoData.selfHealOff || 0,
             }
           }
         }

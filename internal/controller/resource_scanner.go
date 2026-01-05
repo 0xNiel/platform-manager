@@ -343,6 +343,14 @@ func (s *ResourceScanner) normalizeKubernetesStatus(obj client.Object) (platform
 
 // normalizeCrossplaneStatus normalizes status for Crossplane resources
 func (s *ResourceScanner) normalizeCrossplaneStatus(obj client.Object) (platformv1alpha1.ResourceState, string, []platformv1alpha1.ConditionSummary) {
+	// Check for crossplane.io/paused annotation first
+	annotations := obj.GetAnnotations()
+	if annotations != nil {
+		if paused, exists := annotations["crossplane.io/paused"]; exists && paused == "true" {
+			return platformv1alpha1.ResourceStatePaused, "Resource reconciliation is paused", nil
+		}
+	}
+
 	// For unstructured Crossplane resources, check the status.conditions field
 	if u, ok := obj.(*unstructured.Unstructured); ok {
 		conditions, found, err := unstructured.NestedSlice(u.Object, "status", "conditions")
@@ -353,6 +361,7 @@ func (s *ResourceScanner) normalizeCrossplaneStatus(obj client.Object) (platform
 		conditionSummaries := []platformv1alpha1.ConditionSummary{}
 		isReady := false
 		isFailed := false
+		isPaused := false
 		message := ""
 
 		for _, cond := range conditions {
@@ -383,20 +392,34 @@ func (s *ResourceScanner) normalizeCrossplaneStatus(obj client.Object) (platform
 
 			conditionSummaries = append(conditionSummaries, condSummary)
 
+			// Check for ReconcilePaused reason (Crossplane paused resources)
+			if condReason == "ReconcilePaused" {
+				isPaused = true
+				message = "Reconciliation paused"
+			}
+
 			// Check for Ready condition
 			if condType == "Ready" || condType == "Synced" {
 				if condStatus == "True" {
 					isReady = true
-					message = condMessage
+					if message == "" {
+						message = condMessage
+					}
 				} else if condStatus == "False" {
-					isFailed = true
-					message = condMessage
+					if condReason != "ReconcilePaused" {
+						isFailed = true
+						if message == "" {
+							message = condMessage
+						}
+					}
 				}
 			}
 		}
 
-		// Determine state
-		if isReady {
+		// Determine state - paused takes precedence
+		if isPaused {
+			return platformv1alpha1.ResourceStatePaused, message, conditionSummaries
+		} else if isReady {
 			return platformv1alpha1.ResourceStateReady, message, conditionSummaries
 		} else if isFailed {
 			return platformv1alpha1.ResourceStateFailed, message, conditionSummaries
