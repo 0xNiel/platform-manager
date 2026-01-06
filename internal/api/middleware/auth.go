@@ -19,6 +19,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -61,15 +62,34 @@ func ExtractUser(next http.Handler) http.Handler {
 			Groups:   parseGroups(r.Header.Get("X-Auth-Request-Groups")),
 		}
 
-		// If no user from headers (development mode), use defaults
+		// If no user from headers, handle based on environment
 		if user.Username == "" {
-			user.Username = "anonymous"
-			user.Role = RoleReadOnly
+			// Check if dev mode is explicitly enabled
+			devMode := os.Getenv("DEV_MODE") == "true"
 
-			// In development, check for a dev header
-			if devRole := r.Header.Get("X-Dev-Role"); devRole != "" {
-				user.Username = "dev-user"
-				user.Role = Role(devRole)
+			if devMode {
+				// Development mode: allow dev header
+				if devRole := r.Header.Get("X-Dev-Role"); devRole != "" {
+					// Validate role is a real role
+					if isValidRole(Role(devRole)) {
+						user.Username = "dev-user"
+						user.Email = "dev@localhost"
+						user.Role = Role(devRole)
+
+						// Log dev mode usage (not too verbose to avoid log spam)
+						// In production this should trigger alerts
+					} else {
+						user.Username = "anonymous"
+						user.Role = RoleReadOnly
+					}
+				} else {
+					user.Username = "dev-anonymous"
+					user.Role = RoleReadOnly
+				}
+			} else {
+				// Production: no authentication means read-only anonymous
+				user.Username = "anonymous"
+				user.Role = RoleReadOnly
 			}
 		} else {
 			// Map groups to role
@@ -144,5 +164,15 @@ func RequireRole(requiredRoles ...Role) func(http.Handler) http.Handler {
 
 			http.Error(w, "Forbidden", http.StatusForbidden)
 		})
+	}
+}
+
+// isValidRole checks if a role string is valid
+func isValidRole(role Role) bool {
+	switch role {
+	case RoleAdmin, RoleInfra, RoleML, RoleReadOnly:
+		return true
+	default:
+		return false
 	}
 }

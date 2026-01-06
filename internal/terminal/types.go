@@ -37,6 +37,7 @@ type Session struct {
 	Conn            *websocket.Conn
 	CommandRecorder *CommandRecorder
 	Done            chan struct{}
+	RateLimiter     *RateLimiter // Rate limiter for input throttling
 
 	// ExecContext and ExecCancel track the current exec stream
 	// These are used to cancel previous exec when a new WebSocket connects
@@ -77,6 +78,34 @@ type Config struct {
 	MaxSessions    int
 	AllowedTenants []string // Empty = all tenants allowed
 	ServiceAccount string   // ServiceAccount for toolbox pods
+}
+
+// SecurityConfig holds security settings for terminal WebSocket connections
+type SecurityConfig struct {
+	AllowedOrigins []string // List of allowed origins for WebSocket connections
+	DevMode        bool     // Development mode - allows all origins when true
+}
+
+// DefaultSecurityConfig returns secure defaults for terminal security
+func DefaultSecurityConfig() SecurityConfig {
+	return SecurityConfig{
+		AllowedOrigins: []string{},
+		DevMode:        false,
+	}
+}
+
+// IsOriginAllowed checks if an origin is in the allowed list
+func (c *SecurityConfig) IsOriginAllowed(origin string) bool {
+	if c.DevMode {
+		return true // Allow all in dev mode
+	}
+
+	for _, allowed := range c.AllowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultConfig returns default terminal configuration
