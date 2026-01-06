@@ -31,6 +31,7 @@ import (
 	"github.com/platform-manager/platform-manager/internal/api/middleware"
 	"github.com/platform-manager/platform-manager/internal/controller"
 	"github.com/platform-manager/platform-manager/internal/metrics"
+	"github.com/platform-manager/platform-manager/internal/terminal"
 )
 
 var log = logf.Log.WithName("api-server")
@@ -41,17 +42,19 @@ type Server struct {
 	prometheusClient *metrics.PrometheusClient
 	iamScanner       *controller.IAMDriftScanner
 	ruleEvaluator    *controller.RuleEvaluator
+	terminalManager  *terminal.Manager
 	httpServer       *http.Server
 	addr             string
 }
 
 // NewServer creates a new API server
-func NewServer(addr string, k8sClient client.Client, promClient *metrics.PrometheusClient, iamScanner *controller.IAMDriftScanner, ruleEvaluator *controller.RuleEvaluator) *Server {
+func NewServer(addr string, k8sClient client.Client, promClient *metrics.PrometheusClient, iamScanner *controller.IAMDriftScanner, ruleEvaluator *controller.RuleEvaluator, terminalMgr *terminal.Manager) *Server {
 	return &Server{
 		client:           k8sClient,
 		prometheusClient: promClient,
 		iamScanner:       iamScanner,
 		ruleEvaluator:    ruleEvaluator,
+		terminalManager:  terminalMgr,
 		addr:             addr,
 	}
 }
@@ -123,6 +126,15 @@ func (s *Server) setupRouter() *chi.Mux {
 		auditLogger := middleware.NewDefaultAuditLogger()
 		actionsHandler := handlers.NewActionsHandler(s.client, auditLogger)
 
+		// Create auth handler
+		authHandler := handlers.NewAuthHandler()
+
+		// Auth endpoints
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/me", authHandler.GetCurrentUser)
+			r.Get("/capabilities", authHandler.GetCapabilities)
+		})
+
 		// Health endpoints
 		r.Route("/health", func(r chi.Router) {
 			r.Get("/platform", healthHandler.GetPlatformHealth)
@@ -189,6 +201,19 @@ func (s *Server) setupRouter() *chi.Mux {
 			troubleshootingHandler.RegisterRoutes(r)
 		} else {
 			log.Info("Rule evaluator is nil, troubleshooting routes not registered")
+		}
+
+		// Terminal endpoints
+		if s.terminalManager != nil {
+			log.Info("Registering terminal routes", "enabled", s.terminalManager.IsEnabled())
+			terminalHandler, err := handlers.NewTerminalHandler(s.client, s.terminalManager, log)
+			if err != nil {
+				log.Error(err, "failed to create terminal handler")
+			} else {
+				terminalHandler.RegisterRoutes(r)
+			}
+		} else {
+			log.Info("Terminal manager is nil, terminal routes not registered")
 		}
 	})
 

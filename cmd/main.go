@@ -44,6 +44,7 @@ import (
 	"github.com/platform-manager/platform-manager/internal/api"
 	"github.com/platform-manager/platform-manager/internal/controller"
 	"github.com/platform-manager/platform-manager/internal/metrics"
+	"github.com/platform-manager/platform-manager/internal/terminal"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -72,6 +73,10 @@ func main() {
 	var enableHTTP2 bool
 	var iamDriftScanInterval string
 	var ruleEvalInterval string
+	var enableTerminal bool
+	var terminalNamespace string
+	var terminalImage string
+	var terminalIdleTimeout string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -80,6 +85,10 @@ func main() {
 	flag.StringVar(&prometheusURL, "prometheus-url", "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090", "The URL of the Prometheus server.")
 	flag.StringVar(&iamDriftScanInterval, "iam-drift-scan-interval", "5m", "The interval for IAM drift scanning (e.g., 5m, 1h)")
 	flag.StringVar(&ruleEvalInterval, "rule-eval-interval", "2m", "The interval for rule evaluation (e.g., 2m, 5m, 10m)")
+	flag.BoolVar(&enableTerminal, "enable-terminal", false, "Enable web terminal feature")
+	flag.StringVar(&terminalNamespace, "terminal-namespace", "toolbox-sessions", "Namespace for terminal toolbox pods")
+	flag.StringVar(&terminalImage, "terminal-image", "platform-manager-toolbox:latest", "Toolbox container image")
+	flag.StringVar(&terminalIdleTimeout, "terminal-idle-timeout", "10m", "Terminal session idle timeout (e.g., 10m, 30m)")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -280,8 +289,36 @@ func main() {
 		setupLog.Info("Prometheus URL not provided, metrics will be unavailable")
 	}
 
+	// Initialize terminal manager if enabled
+	var terminalMgr *terminal.Manager
+	if enableTerminal {
+		idleTimeout, err := time.ParseDuration(terminalIdleTimeout)
+		if err != nil {
+			setupLog.Error(err, "invalid terminal idle timeout", "timeout", terminalIdleTimeout)
+			os.Exit(1)
+		}
+
+		terminalConfig := terminal.Config{
+			Enabled:        true,
+			Namespace:      terminalNamespace,
+			ToolboxImage:   terminalImage,
+			IdleTimeout:    idleTimeout,
+			MaxSessions:    20,
+			AllowedTenants: []string{}, // Empty = all tenants allowed
+			ServiceAccount: "toolbox-session",
+		}
+
+		terminalMgr = terminal.NewManager(mgr.GetClient(), terminalConfig, ctrl.Log.WithName("terminal"))
+		setupLog.Info("Terminal feature enabled",
+			"namespace", terminalNamespace,
+			"image", terminalImage,
+			"idleTimeout", idleTimeout)
+	} else {
+		setupLog.Info("Terminal feature disabled")
+	}
+
 	// Add the HTTP API server as a runnable (iamScanner and ruleEvaluator initialized earlier)
-	apiServer := api.NewServer(apiAddr, mgr.GetClient(), prometheusClient, iamScanner, ruleEvaluator)
+	apiServer := api.NewServer(apiAddr, mgr.GetClient(), prometheusClient, iamScanner, ruleEvaluator, terminalMgr)
 	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		return apiServer.Start(ctx)
 	})); err != nil {

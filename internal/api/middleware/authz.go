@@ -36,6 +36,8 @@ const (
 	CapReconcileCrossplane Capability = "crossplane:reconcile"
 	// CapDeleteResource allows deleting resources
 	CapDeleteResource Capability = "resource:delete"
+	// CapUseTerminal allows access to web terminal
+	CapUseTerminal Capability = "terminal:use"
 )
 
 // roleCapabilities maps roles to their allowed capabilities
@@ -46,12 +48,14 @@ var roleCapabilities = map[Role][]Capability{
 		CapPauseCrossplane,
 		CapReconcileCrossplane,
 		CapDeleteResource,
+		CapUseTerminal,
 	},
 	RoleInfra: {
 		CapSyncArgo,
 		CapRefreshArgo,
 		CapPauseCrossplane,
 		CapReconcileCrossplane,
+		CapUseTerminal,
 	},
 	RoleML: {
 		CapRefreshArgo,
@@ -163,6 +167,8 @@ func capabilityToActionName(cap Capability) string {
 		return metrics.ActionCrossplaneReconcile
 	case CapDeleteResource:
 		return metrics.ActionResourceDelete
+	case CapUseTerminal:
+		return "terminal:use"
 	default:
 		return ""
 	}
