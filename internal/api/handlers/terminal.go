@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-logr/logr"
@@ -38,25 +39,17 @@ import (
 	"github.com/platform-manager/platform-manager/internal/terminal"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// In production, validate origin properly
-		return true
-	},
-}
-
 // TerminalHandler handles terminal WebSocket connections
 type TerminalHandler struct {
-	manager    *terminal.Manager
-	clientset  *kubernetes.Clientset
-	restConfig *rest.Config
-	logger     logr.Logger
+	manager        *terminal.Manager
+	clientset      *kubernetes.Clientset
+	restConfig     *rest.Config
+	logger         logr.Logger
+	securityConfig terminal.SecurityConfig
 }
 
 // NewTerminalHandler creates a new terminal handler
-func NewTerminalHandler(k8sClient client.Client, terminalMgr *terminal.Manager, logger logr.Logger) (*TerminalHandler, error) {
+func NewTerminalHandler(k8sClient client.Client, terminalMgr *terminal.Manager, logger logr.Logger, securityConfig terminal.SecurityConfig) (*TerminalHandler, error) {
 	// Get rest config - try in-cluster first, then fallback to kubeconfig
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -80,10 +73,11 @@ func NewTerminalHandler(k8sClient client.Client, terminalMgr *terminal.Manager, 
 	}
 
 	return &TerminalHandler{
-		manager:    terminalMgr,
-		clientset:  clientset,
-		restConfig: config,
-		logger:     logger.WithName("terminal-handler"),
+		manager:        terminalMgr,
+		clientset:      clientset,
+		restConfig:     config,
+		logger:         logger.WithName("terminal-handler"),
+		securityConfig: securityConfig,
 	}, nil
 }
 
@@ -109,6 +103,26 @@ func (h *TerminalHandler) RegisterRoutes(r chi.Router) {
 			r.Delete("/sessions/{sessionId}", h.DeleteSession)
 		})
 	})
+}
+
+// createUpgrader creates a WebSocket upgrader with proper origin validation
+func (h *TerminalHandler) createUpgrader() websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			allowed := h.securityConfig.IsOriginAllowed(origin)
+			
+			if !allowed {
+				h.logger.Info("rejected websocket connection from unauthorized origin",
+					"origin", origin,
+					"remoteAddr", r.RemoteAddr)
+			}
+			
+			return allowed
+		},
+	}
 }
 
 // requireTerminalEnabled middleware checks if terminal feature is enabled
@@ -211,10 +225,11 @@ func (h *TerminalHandler) DeleteSession(w http.ResponseWriter, r *http.Request) 
 //
 // Note: This endpoint doesn't use the normal auth middleware because browsers
 // cannot send custom headers with WebSocket connections. Instead, we validate
-// that the session exists and rely on the fact that:
+// that the session exists and the origin is allowed. Security relies on:
 // 1. The session was created by an authenticated user (via POST /sessions)
 // 2. The sessionId is a UUID that's hard to guess
-// 3. In production, OAuth2Proxy cookies will provide authentication
+// 3. Origin validation prevents cross-site WebSocket hijacking
+// 4. In production, OAuth2Proxy cookies will provide authentication
 func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "sessionId")
 
@@ -225,6 +240,9 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
+
+	// Create upgrader with security config
+	upgrader := h.createUpgrader()
 
 	// Upgrade to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -293,22 +311,32 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 			default:
 			}
 
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				// Only log as error if not a normal close
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
-					h.logger.Error(err, "websocket read error", "sessionId", sessionID)
-				} else {
-					h.logger.Info("websocket closed", "sessionId", sessionID)
-				}
-				return
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			// Only log as error if not a normal close
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
+				h.logger.Error(err, "websocket read error", "sessionId", sessionID)
+			} else {
+				h.logger.Info("websocket closed", "sessionId", sessionID)
 			}
-			h.manager.UpdateActivity(sessionID)
-			_, err = stdinWriter.Write(message)
-			if err != nil {
-				h.logger.Error(err, "stdin write error", "sessionId", sessionID)
-				return
-			}
+			return
+		}
+		
+		// Apply rate limiting to prevent input flooding
+		if !session.RateLimiter.Allow() {
+			h.logger.Info("rate limit exceeded", "sessionId", sessionID, "username", session.Username)
+			// Optionally send a message to user (commented out to avoid output spam)
+			// conn.WriteMessage(websocket.TextMessage, []byte("\r\n⚠️  Rate limit exceeded.\r\n"))
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		
+		h.manager.UpdateActivity(sessionID)
+		_, err = stdinWriter.Write(message)
+		if err != nil {
+			h.logger.Error(err, "stdin write error", "sessionId", sessionID)
+			return
+		}
 		}
 	}()
 

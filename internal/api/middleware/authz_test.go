@@ -75,8 +75,8 @@ func TestGetUserCapabilities(t *testing.T) {
 		role          Role
 		expectedCount int
 	}{
-		{"admin has 5 capabilities", RoleAdmin, 5},
-		{"infra has 4 capabilities", RoleInfra, 4},
+		{"admin has 6 capabilities", RoleAdmin, 6},  // Updated: admin now has terminal capability
+		{"infra has 5 capabilities", RoleInfra, 5},  // Updated: infra now has terminal capability
 		{"ml has 1 capability", RoleML, 1},
 		{"readonly has 0 capabilities", RoleReadOnly, 0},
 	}

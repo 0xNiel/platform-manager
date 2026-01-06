@@ -130,6 +130,7 @@ func (m *Manager) CreateSession(ctx context.Context, opts SessionOptions) (*Sess
 		LastActivity: time.Now(),
 		IdleTimeout:  opts.IdleTimeout,
 		Done:         make(chan struct{}),
+		RateLimiter:  NewRateLimiter(100, 10), // 100 tokens, refill 10/sec
 		CommandRecorder: NewCommandRecorder(
 			sessionID,
 			opts.Username,

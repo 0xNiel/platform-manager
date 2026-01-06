@@ -3,7 +3,7 @@
 # Includes kubectl, aws CLI, and common debugging tools
 # Multi-architecture support (amd64/arm64)
 
-FROM alpine:3.19
+FROM alpine:3.21
 
 # Install base tools
 RUN apk add --no-cache \
@@ -28,26 +28,27 @@ RUN apk add --no-cache \
 ARG TARGETARCH
 RUN echo "Building for architecture: ${TARGETARCH}"
 
-# Install kubectl (architecture-aware)
-ARG KUBECTL_VERSION=v1.29.0
+# Install kubectl (architecture-aware) - UPDATED VERSION
+ARG KUBECTL_VERSION=v1.33.0
 RUN ARCH=${TARGETARCH:-amd64} && \
     curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
 
-# Install AWS CLI
-RUN pip3 install --no-cache-dir awscli --break-system-packages
+# Install AWS CLI - PINNED VERSION
+ARG AWS_CLI_VERSION=1.32.0
+RUN pip3 install --no-cache-dir awscli==${AWS_CLI_VERSION} --break-system-packages
 
-# Install Helm (architecture-aware)
-ARG HELM_VERSION=v3.14.0
+# Install Helm (architecture-aware) - UPDATED VERSION
+ARG HELM_VERSION=v3.16.3
 RUN ARCH=${TARGETARCH:-amd64} && \
     curl -LO "https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz" && \
     tar -zxvf helm-${HELM_VERSION}-linux-${ARCH}.tar.gz && \
     mv linux-${ARCH}/helm /usr/local/bin/ && \
     rm -rf linux-${ARCH} helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
 
-# Install ArgoCD CLI (architecture-aware)
-ARG ARGOCD_VERSION=v2.10.0
+# Install ArgoCD CLI (architecture-aware) - UPDATED VERSION
+ARG ARGOCD_VERSION=v2.13.1
 RUN ARCH=${TARGETARCH:-amd64} && \
     curl -sSL -o /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-${ARCH}" && \
     chmod +x /usr/local/bin/argocd
@@ -75,7 +76,7 @@ alias describe='kubectl describe'
 
 # Functions
 kdebug() {
-  kubectl run debug-$RANDOM --rm -it --image=alpine:3.19 -- /bin/sh
+  kubectl run debug-$RANDOM --rm -it --image=alpine:3.21 -- /bin/sh
 }
 
 # Show current context
