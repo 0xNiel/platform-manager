@@ -208,10 +208,10 @@ func (s *Server) setupRouter() *chi.Mux {
 		// Terminal endpoints
 		if s.terminalManager != nil {
 			log.Info("Registering terminal routes", "enabled", s.terminalManager.IsEnabled())
-			
+
 			// Get security config from environment
 			securityConfig := getTerminalSecurityConfig()
-			
+
 			terminalHandler, err := handlers.NewTerminalHandler(s.client, s.terminalManager, log, securityConfig)
 			if err != nil {
 				log.Error(err, "failed to create terminal handler")
@@ -239,10 +239,10 @@ func getTerminalSecurityConfig() terminal.SecurityConfig {
 			}
 		}
 	}
-	
+
 	// Check if dev mode is enabled
 	devMode := os.Getenv("DEV_MODE") == "true"
-	
+
 	if devMode {
 		log.Info("⚠️  TERMINAL: Development mode enabled - accepting WebSocket connections from any origin")
 	} else if len(allowedOrigins) > 0 {
@@ -250,7 +250,7 @@ func getTerminalSecurityConfig() terminal.SecurityConfig {
 	} else {
 		log.Info("⚠️  TERMINAL: No allowed origins configured and dev mode disabled - WebSocket connections will be rejected")
 	}
-	
+
 	return terminal.SecurityConfig{
 		AllowedOrigins: allowedOrigins,
 		DevMode:        devMode,

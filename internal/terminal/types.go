@@ -99,7 +99,7 @@ func (c *SecurityConfig) IsOriginAllowed(origin string) bool {
 	if c.DevMode {
 		return true // Allow all in dev mode
 	}
-	
+
 	for _, allowed := range c.AllowedOrigins {
 		if origin == allowed {
 			return true

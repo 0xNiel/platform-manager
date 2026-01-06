@@ -66,7 +66,7 @@ func ExtractUser(next http.Handler) http.Handler {
 		if user.Username == "" {
 			// Check if dev mode is explicitly enabled
 			devMode := os.Getenv("DEV_MODE") == "true"
-			
+
 			if devMode {
 				// Development mode: allow dev header
 				if devRole := r.Header.Get("X-Dev-Role"); devRole != "" {
@@ -75,7 +75,7 @@ func ExtractUser(next http.Handler) http.Handler {
 						user.Username = "dev-user"
 						user.Email = "dev@localhost"
 						user.Role = Role(devRole)
-						
+
 						// Log dev mode usage (not too verbose to avoid log spam)
 						// In production this should trigger alerts
 					} else {

@@ -113,13 +113,13 @@ func (h *TerminalHandler) createUpgrader() websocket.Upgrader {
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 			allowed := h.securityConfig.IsOriginAllowed(origin)
-			
+
 			if !allowed {
 				h.logger.Info("rejected websocket connection from unauthorized origin",
 					"origin", origin,
 					"remoteAddr", r.RemoteAddr)
 			}
-			
+
 			return allowed
 		},
 	}
@@ -311,32 +311,32 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 			default:
 			}
 
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			// Only log as error if not a normal close
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
-				h.logger.Error(err, "websocket read error", "sessionId", sessionID)
-			} else {
-				h.logger.Info("websocket closed", "sessionId", sessionID)
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				// Only log as error if not a normal close
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
+					h.logger.Error(err, "websocket read error", "sessionId", sessionID)
+				} else {
+					h.logger.Info("websocket closed", "sessionId", sessionID)
+				}
+				return
 			}
-			return
-		}
-		
-		// Apply rate limiting to prevent input flooding
-		if !session.RateLimiter.Allow() {
-			h.logger.Info("rate limit exceeded", "sessionId", sessionID, "username", session.Username)
-			// Optionally send a message to user (commented out to avoid output spam)
-			// conn.WriteMessage(websocket.TextMessage, []byte("\r\n⚠️  Rate limit exceeded.\r\n"))
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		
-		h.manager.UpdateActivity(sessionID)
-		_, err = stdinWriter.Write(message)
-		if err != nil {
-			h.logger.Error(err, "stdin write error", "sessionId", sessionID)
-			return
-		}
+
+			// Apply rate limiting to prevent input flooding
+			if !session.RateLimiter.Allow() {
+				h.logger.Info("rate limit exceeded", "sessionId", sessionID, "username", session.Username)
+				// Optionally send a message to user (commented out to avoid output spam)
+				// conn.WriteMessage(websocket.TextMessage, []byte("\r\n⚠️  Rate limit exceeded.\r\n"))
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+
+			h.manager.UpdateActivity(sessionID)
+			_, err = stdinWriter.Write(message)
+			if err != nil {
+				h.logger.Error(err, "stdin write error", "sessionId", sessionID)
+				return
+			}
 		}
 	}()
 

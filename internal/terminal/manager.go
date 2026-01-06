@@ -89,7 +89,7 @@ func (m *Manager) CreateSession(ctx context.Context, opts SessionOptions) (*Sess
 	existingPod := &corev1.Pod{}
 	key := client.ObjectKey{Namespace: opts.Namespace, Name: podName}
 	podExists := false
-	
+
 	if err := m.client.Get(ctx, key, existingPod); err == nil {
 		// Pod exists - check if it's running
 		if existingPod.Status.Phase == corev1.PodRunning {

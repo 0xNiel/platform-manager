@@ -40,7 +40,7 @@ func DefaultCORSConfig() CORSConfig {
 			}
 		}
 	}
-	
+
 	return CORSConfig{
 		AllowedOrigins: allowedOrigins,
 		DevMode:        os.Getenv("DEV_MODE") == "true",
@@ -52,7 +52,7 @@ func CORSWithConfig(config CORSConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			
+
 			// In dev mode, allow all origins
 			if config.DevMode {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -61,7 +61,7 @@ func CORSWithConfig(config CORSConfig) func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Vary", "Origin")
 			}
-			
+
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 			w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-CSRF-Token, X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Groups")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
