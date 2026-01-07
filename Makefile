@@ -429,21 +429,71 @@ clear-tenants: ## Remove test tenant resources
 
 ##@ Frontend
 
+# MFE image configuration
+MFE_IMG ?= localhost:5001/platform-manager-mfe:latest
+
 .PHONY: web-install
 web-install: ## Install frontend dependencies
 	cd web && npm install
 
 .PHONY: web-dev
-web-dev: ## Run frontend dev server
+web-dev: ## Run frontend dev server (standalone mode)
 	cd web && npm run serve
 
 .PHONY: web-build
-web-build: ## Build frontend for production
+web-build: ## Build frontend for production (standalone SPA)
 	cd web && npm run build
 
 .PHONY: web-build-mfe
 web-build-mfe: ## Build frontend as single-spa MFE
-	cd web && npm run build:mfe
+	cd web && BUILD_MODE=mfe npm run build
+
+.PHONY: web-docker-build
+web-docker-build: ## Build MFE Docker image
+	$(CONTAINER_TOOL) buildx build \
+		--platform linux/amd64 \
+		--tag $(MFE_IMG) \
+		--load \
+		-f web/Dockerfile \
+		web/
+
+.PHONY: web-docker-build-multi
+web-docker-build-multi: ## Build MFE Docker image for multiple architectures (amd64/arm64)
+	$(CONTAINER_TOOL) buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--tag $(MFE_IMG) \
+		--push \
+		-f web/Dockerfile \
+		web/
+
+.PHONY: web-docker-push
+web-docker-push: web-docker-build ## Build and push MFE Docker image
+	$(CONTAINER_TOOL) push $(MFE_IMG)
+
+.PHONY: web-docker-run
+web-docker-run: ## Run MFE Docker container locally
+	@$(CONTAINER_TOOL) rm -f platform-mfe-test 2>/dev/null || true
+	$(CONTAINER_TOOL) run -d \
+		--name platform-mfe-test \
+		-p 8080:8080 \
+		$(MFE_IMG)
+	@echo "MFE running at http://localhost:8080"
+	@echo "Health check: curl http://localhost:8080/health"
+	@echo "Manifest: curl http://localhost:8080/manifest.json"
+	@echo "MFE bundle: curl http://localhost:8080/js/app.js"
+
+.PHONY: web-docker-stop
+web-docker-stop: ## Stop MFE Docker container
+	$(CONTAINER_TOOL) rm -f platform-mfe-test
+
+.PHONY: web-deploy
+web-deploy: ## Deploy MFE to Kubernetes
+	$(KUBECTL) apply -f config/frontend/deployment.yaml
+
+.PHONY: web-deploy-status
+web-deploy-status: ## Check MFE deployment status
+	$(KUBECTL) -n platform-system get pods -l app=platform-manager-mfe
+	$(KUBECTL) -n platform-system get svc platform-manager-mfe
 
 ##@ Toolbox
 
