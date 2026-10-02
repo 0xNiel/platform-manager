@@ -1,135 +1,123 @@
-# platform-manager
-// TODO(user): Add simple overview of use/purpose
+# Platform Manager
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+A Kubernetes controller and web UI for running a multi-tenant Crossplane platform on AWS. It pulls Crossplane, ArgoCD, Kubernetes workloads, and live AWS IAM state into one place, so you can start at a platform-wide health view and drill down to a single failing resource.
 
-## Getting Started
+I run a Crossplane-based platform on AWS, and I built this to answer the questions that come up when something breaks. Which tenants are unhealthy right now? Which Crossplane resources are paused or stuck? Has anyone changed an IAM role in the console that Crossplane doesn't know about? Without it, answering those takes a pile of `kubectl get` calls across several namespaces, the ArgoCD UI, and the AWS console.
 
-### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+## What it does
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- **Platform and tenant health.** A dashboard rolls up Ready, Failed, Waiting, Unknown, and Paused counts across Crossplane managed resources, Deployments, StatefulSets, DaemonSets, Pods, and ArgoCD Applications. Each tenant gets a Healthy, Degraded, Critical, or Unknown rating, and you can click through to its resources.
+- **IAM drift detection.** A background scanner compares each Crossplane-managed IAM Role and Policy against what actually exists in AWS. It reports extra inline or attached policies, missing privileges, policy document and trust policy mismatches, and reconciliation lag. Severity is graded so that "someone added `s3:*` by hand" shows up as critical.
+- **Troubleshooting rule engine.** Eleven built-in rules run on a schedule and turn raw status into findings, for example CrashLoopBackOff, ImagePullBackOff, an unhealthy Crossplane provider, a paused resource that is still syncing, ArgoCD sync failures, and high resource usage. Rules implement a small Go interface, so adding one means writing one file.
+- **Operational actions.** Sync and refresh ArgoCD apps, pause, unpause, or force-reconcile Crossplane resources, and delete resources. Every action goes through role checks, writes an audit log entry, and records Prometheus metrics.
+- **Web terminal.** An xterm.js terminal in the browser, backed by a short-lived toolbox pod with `kubectl`, the AWS CLI, Helm, and the ArgoCD CLI. The pod runs as non-root with all capabilities dropped and a read-only ServiceAccount. Sessions are rate-limited, check the WebSocket Origin header, and end after 10 minutes idle.
+- **Role-based access.** Four roles (admin, infra, ml, readonly) map to capabilities such as `argo:sync`, `crossplane:pause`, and `terminal:use`. Identity comes from OAuth2 Proxy headers at the gateway.
 
-```sh
-make docker-build docker-push IMG=<some-registry>/platform-manager:tag
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        UI[Vue 3 UI<br/>standalone or single-spa MFE]
+    end
+
+    subgraph Gateway
+        OP[OAuth2 Proxy]
+    end
+
+    subgraph Cluster[Kubernetes cluster]
+        subgraph PM[platform-manager binary]
+            API[HTTP API<br/>chi + WebSocket]
+            TC[Tenant controller]
+            IAM[IAM drift scanner]
+            RE[Rule evaluator]
+            TM[Terminal manager]
+        end
+        CRDs[(Tenant / TenantHealth<br/>ResourceSummary CRDs)]
+        XP[Crossplane resources]
+        ARGO[ArgoCD Applications]
+        WL[Workloads]
+        TB[Toolbox pods]
+        PROM[Prometheus]
+    end
+
+    AWS[(AWS IAM)]
+
+    UI --> OP --> API
+    TC --> CRDs
+    TC --> XP & ARGO & WL
+    IAM --> XP
+    IAM --> AWS
+    RE --> XP & ARGO & WL
+    API --> CRDs
+    API --> PROM
+    TM --> TB
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+The backend is a single Go binary built with Kubebuilder. One controller-runtime manager runs the reconcilers, the background scanners, and the HTTP API, and they all share the manager's informer cache. The frontend is Vue 3 with TypeScript. It builds either as a standalone SPA or as a single-spa micro-frontend that loads into a larger admin portal.
 
-**Install the CRDs into the cluster:**
+See [docs/architecture.md](docs/architecture.md) for the data model, the reconcile loop, how drift detection works, and the design decisions behind them.
 
-```sh
-make install
-```
+## Tech stack
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+| Area | Tools |
+|------|-------|
+| Backend | Go 1.24, Kubebuilder v4, controller-runtime, chi, gorilla/websocket, aws-sdk-go-v2 |
+| Frontend | Vue 3, TypeScript, Pinia, Vue Router, Chart.js, xterm.js, single-spa |
+| Platform | Kubernetes, Crossplane (Upbound AWS provider), ArgoCD, Prometheus |
+| Local dev | kind, LocalStack, Helm, Docker |
+| Testing | Ginkgo, Gomega, envtest, kind-based e2e |
+| CI | GitHub Actions (lint, unit tests, e2e) |
 
-```sh
-make deploy IMG=<some-registry>/platform-manager:tag
-```
+## Quick start
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+You need Go 1.24+, Docker, kind, kubectl, Helm, Node 20, and the LocalStack CLI (or Docker).
 
 ```sh
-kubectl apply -k config/samples/
+# 1. Start LocalStack in a separate terminal. It stands in for AWS IAM.
+localstack start
+
+# 2. Create a kind cluster with ArgoCD, Crossplane, and seeded tenants
+make dev-up
+
+# 3. Install the CRDs and run the controller + API on :9080
+DEV_MODE=true AWS_ENDPOINT=http://localhost:4566 make run-local
+
+# 4. In another terminal, start the UI on http://localhost:9082
+make web-install web-dev
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+To see drift detection pick something up, run `make localstack-create-drift`. It attaches an `s3:*` inline policy to a Crossplane-managed role behind Crossplane's back. Then trigger a scan from the IAM Drift page.
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+[docs/local-development.md](docs/local-development.md) covers the full setup, including the web terminal, seeding failure scenarios, and running the tests.
 
-```sh
-kubectl delete -k config/samples/
+## Repository layout
+
+```
+api/v1alpha1/       CRD types: Tenant, TenantHealth, ResourceSummary, PlatformHealth
+cmd/                Entry point that wires the manager, scanners, and API server
+internal/
+  controller/       Tenant reconciler, Crossplane/Argo watchers, health aggregator, IAM drift scanner
+  iam/              AWS IAM client and policy diffing
+  rules/            Rule engine and built-in troubleshooting rules
+  api/              HTTP handlers and middleware (auth, authz, CORS, audit)
+  terminal/         Toolbox pod lifecycle, rate limiting, command recording
+  metrics/          Prometheus queries and action metrics
+web/                Vue 3 frontend
+config/             Kustomize manifests (CRDs, RBAC, manager, frontend)
+hack/               kind config, Crossplane/LocalStack setup, seed tenants
+test/e2e/           End-to-end tests against a kind cluster
+docs/               Architecture, API, security, development, and deployment docs
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+## Documentation
 
-```sh
-make uninstall
-```
+- [Architecture](docs/architecture.md): components, data model, design decisions
+- [API reference](docs/api.md): REST and WebSocket endpoints
+- [Security](docs/security.md): auth model, terminal hardening, security review results
+- [Local development](docs/local-development.md): kind + LocalStack environment, testing
+- [Deployment](docs/deployment.md): deploying the controller and the frontend, micro-frontend integration
 
-**UnDeploy the controller from the cluster:**
+## Status
 
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/platform-manager:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/platform-manager/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+This is a working prototype that runs end to end against kind and LocalStack. I ran a security review (`govulncheck`, `npm audit`, and a manual code review) and fixed every critical and high finding in the Go code. The remaining items, mostly dev-only npm advisories from Vue CLI and some hardening work, are listed in [docs/security.md](docs/security.md#known-gaps). Next on the list are moving the frontend from Vue CLI to Vite, detecting orphaned IAM roles that exist in AWS but not in Crossplane (the drift type exists, the scan does not yet), and keeping drift history so you can see trends over time.
