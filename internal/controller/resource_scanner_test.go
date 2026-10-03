@@ -92,12 +92,14 @@ var _ = Describe("ResourceScanner", func() {
 			Expect(scanner.scanKubernetesResources(ctx, tenant)).To(Succeed())
 
 			// Verify ResourceSummary was created
-			summaryName := generateResourceSummaryName(tenant.Name, deploy)
+			summaryName := generateResourceSummaryName(tenant.Name, appsv1.SchemeGroupVersion.WithKind("Deployment"), deploy)
 			summary := &platformv1alpha1.ResourceSummary{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: summaryName}, summary)
 			}).Should(Succeed())
 
+			Expect(summary.Spec.Group).To(Equal("apps"))
+			Expect(summary.Spec.Version).To(Equal("v1"))
 			Expect(summary.Spec.Kind).To(Equal("Deployment"))
 			Expect(summary.Spec.Name).To(Equal("test-deployment"))
 			Expect(summary.Spec.Namespace).To(Equal(namespace.Name))
@@ -135,14 +137,57 @@ var _ = Describe("ResourceScanner", func() {
 			Expect(scanner.scanKubernetesResources(ctx, tenant)).To(Succeed())
 
 			// Verify ResourceSummary was created
-			summaryName := generateResourceSummaryName(tenant.Name, job)
+			summaryName := generateResourceSummaryName(tenant.Name, batchv1.SchemeGroupVersion.WithKind("Job"), job)
 			summary := &platformv1alpha1.ResourceSummary{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: summaryName}, summary)
 			}).Should(Succeed())
 
+			Expect(summary.Spec.Group).To(Equal("batch"))
+			Expect(summary.Spec.Version).To(Equal("v1"))
 			Expect(summary.Spec.Kind).To(Equal("Job"))
 			Expect(summary.Spec.Name).To(Equal("test-job"))
+		})
+
+		It("should keep separate summaries for different kinds with the same name", func() {
+			podSpec := corev1.PodSpec{
+				Containers:    []corev1.Container{{Name: "test", Image: "nginx:alpine"}},
+				RestartPolicy: corev1.RestartPolicyNever,
+			}
+			deploy := &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: "shared-name", Namespace: namespace.Name},
+				Spec: appsv1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "shared"}},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "shared"}},
+						Spec:       corev1.PodSpec{Containers: podSpec.Containers},
+					},
+				},
+			}
+			job := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{Name: "shared-name", Namespace: namespace.Name},
+				Spec:       batchv1.JobSpec{Template: corev1.PodTemplateSpec{Spec: podSpec}},
+			}
+			Expect(k8sClient.Create(ctx, deploy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, job)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, deploy)).To(Succeed())
+				Expect(k8sClient.Delete(ctx, job)).To(Succeed())
+			})
+
+			Expect(scanner.scanKubernetesResources(ctx, tenant)).To(Succeed())
+
+			deploySummary := &platformv1alpha1.ResourceSummary{}
+			deployName := generateResourceSummaryName(tenant.Name, appsv1.SchemeGroupVersion.WithKind("Deployment"), deploy)
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: deployName}, deploySummary)).To(Succeed())
+			Expect(deploySummary.Spec.Kind).To(Equal("Deployment"))
+
+			jobSummary := &platformv1alpha1.ResourceSummary{}
+			jobName := generateResourceSummaryName(tenant.Name, batchv1.SchemeGroupVersion.WithKind("Job"), job)
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: jobName}, jobSummary)).To(Succeed())
+			Expect(jobSummary.Spec.Kind).To(Equal("Job"))
+
+			Expect(deployName).NotTo(Equal(jobName))
 		})
 	})
 

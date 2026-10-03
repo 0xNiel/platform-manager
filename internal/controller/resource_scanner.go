@@ -245,9 +245,16 @@ func (s *ResourceScanner) scanArgoResources(ctx context.Context, tenant *platfor
 func (s *ResourceScanner) createOrUpdateResourceSummary(ctx context.Context, tenant *platformv1alpha1.Tenant, obj client.Object, category platformv1alpha1.ResourceCategory) error {
 	log := logf.FromContext(ctx)
 
+	// Typed objects from List come back with an empty TypeMeta, so resolve
+	// the GVK from the scheme instead of trusting obj.GetObjectKind().
+	gvk, err := s.Client.GroupVersionKindFor(obj)
+	if err != nil {
+		return fmt.Errorf("failed to resolve GVK for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+	}
+
 	// Generate a unique name for the ResourceSummary
-	// Format: <tenant>-<kind>-<namespace>-<name> (hash if too long)
-	summaryName := generateResourceSummaryName(tenant.Name, obj)
+	// Format: <tenant>-<kind>-<namespace>-<name>
+	summaryName := generateResourceSummaryName(tenant.Name, gvk, obj)
 
 	resourceSummary := &platformv1alpha1.ResourceSummary{
 		ObjectMeta: metav1.ObjectMeta{
@@ -260,9 +267,8 @@ func (s *ResourceScanner) createOrUpdateResourceSummary(ctx context.Context, ten
 	}
 
 	// Create or update the spec
-	_, err := controllerutil.CreateOrUpdate(ctx, s.Client, resourceSummary, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, s.Client, resourceSummary, func() error {
 		// Populate spec
-		gvk := obj.GetObjectKind().GroupVersionKind()
 		resourceSummary.Spec = platformv1alpha1.ResourceSummarySpec{
 			Group:     gvk.Group,
 			Version:   gvk.Version,
@@ -627,8 +633,7 @@ func extractProvider(group string) string {
 }
 
 // generateResourceSummaryName generates a unique name for a ResourceSummary
-func generateResourceSummaryName(tenantName string, obj client.Object) string {
-	gvk := obj.GetObjectKind().GroupVersionKind()
+func generateResourceSummaryName(tenantName string, gvk schema.GroupVersionKind, obj client.Object) string {
 	kind := strings.ToLower(gvk.Kind)
 	namespace := obj.GetNamespace()
 	name := obj.GetName()
