@@ -143,6 +143,9 @@ func (s *ResourceScanner) scanCrossplaneResources(ctx context.Context, tenant *p
 		{Group: "iam.aws.upbound.io", Version: "v1beta1", Kind: "RolePolicyAttachment"},
 		{Group: "iam.aws.upbound.io", Version: "v1beta1", Kind: "User"},
 		{Group: "iam.aws.upbound.io", Version: "v1beta1", Kind: "Group"},
+		// Storage and data
+		{Group: "s3.aws.upbound.io", Version: "v1beta1", Kind: "Bucket"},
+		{Group: "dynamodb.aws.upbound.io", Version: "v1beta1", Kind: "Table"},
 		// Crossplane core
 		{Group: "apiextensions.crossplane.io", Version: "v1", Kind: "CompositeResourceDefinition"},
 		{Group: "apiextensions.crossplane.io", Version: "v1", Kind: "Composition"},
@@ -153,23 +156,17 @@ func (s *ResourceScanner) scanCrossplaneResources(ctx context.Context, tenant *p
 		list := &unstructured.UnstructuredList{}
 		list.SetGroupVersionKind(gvk)
 
-		listOpts := []client.ListOption{}
-		if tenant.Spec.LabelSelector != nil {
-			selector := labels.SelectorFromSet(tenant.Spec.LabelSelector.MatchLabels)
-			listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
-		} else {
-			// Fallback to tenant name label if no explicit selector
-			selector := labels.Set{"platform.io/tenant": tenant.Name}.AsSelector()
-			listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
-		}
-
-		if err := s.List(ctx, list, listOpts...); err != nil {
+		if err := s.List(ctx, list); err != nil {
 			log.Error(err, "Failed to list Crossplane resources", "gvk", gvk.String())
 			// Don't return error, just log and continue
 			continue
 		}
 
 		for _, item := range list.Items {
+			// Same ownership rule as the Crossplane watcher, so both views agree.
+			if !belongsToTenant(&item, tenant) {
+				continue
+			}
 			category := platformv1alpha1.ResourceCategoryCrossplane
 			// Check if it's an IAM resource
 			if strings.Contains(gvk.Group, "iam") {
@@ -412,7 +409,7 @@ func (s *ResourceScanner) normalizeCrossplaneStatus(obj client.Object) (platform
 					if message == "" {
 						message = condMessage
 					}
-				case "False":
+				case conditionStatusFalse:
 					if condReason != "ReconcilePaused" {
 						isFailed = true
 						if message == "" {

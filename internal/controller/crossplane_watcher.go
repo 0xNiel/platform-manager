@@ -48,6 +48,7 @@ const (
 
 	conditionTypeSynced    = "Synced"
 	conditionStatusTrue    = "True"
+	conditionStatusFalse   = "False"
 	conditionStatusUnknown = "Unknown"
 )
 
@@ -59,7 +60,9 @@ var crossplaneGVKs = []schema.GroupVersionKind{
 	{Group: "iam.aws.upbound.io", Version: "v1beta1", Kind: "RolePolicyAttachment"},
 	{Group: "iam.aws.upbound.io", Version: "v1beta1", Kind: "User"},
 	{Group: "iam.aws.upbound.io", Version: "v1beta1", Kind: "Group"},
-	// Add more as needed
+	// Storage and data
+	{Group: "s3.aws.upbound.io", Version: "v1beta1", Kind: "Bucket"},
+	{Group: "dynamodb.aws.upbound.io", Version: "v1beta1", Kind: "Table"},
 }
 
 // ScanCrossplaneResources scans all Crossplane resources for a tenant and returns counts
@@ -120,38 +123,44 @@ func (w *CrossplaneWatcher) listResourcesByGVK(ctx context.Context, gvk schema.G
 		return nil, err
 	}
 
-	// Filter by tenant labels if labelSelector is defined
 	var filtered []unstructured.Unstructured
-	if tenant.Spec.LabelSelector != nil {
-		selector := labels.SelectorFromSet(labels.Set(tenant.Spec.LabelSelector.MatchLabels))
-
-		for _, item := range list.Items {
-			if selector.Matches(labels.Set(item.GetLabels())) {
-				filtered = append(filtered, item)
-			}
-		}
-	} else {
-		// If no label selector, match by namespace (if resources are namespaced)
-		for _, item := range list.Items {
-			// Check if resource is in one of tenant's namespaces
-			for _, ns := range tenant.Spec.Namespaces {
-				if item.GetNamespace() == ns {
-					filtered = append(filtered, item)
-					break
-				}
-			}
-			// Also check for cluster-scoped resources with tenant label
-			if item.GetNamespace() == "" {
-				if tenantLabel, ok := item.GetLabels()["platform.io/tenant"]; ok {
-					if tenantLabel == tenant.Name || tenantLabel == tenant.Spec.DisplayName {
-						filtered = append(filtered, item)
-					}
-				}
-			}
+	for _, item := range list.Items {
+		if belongsToTenant(&item, tenant) {
+			filtered = append(filtered, item)
 		}
 	}
 
 	return filtered, nil
+}
+
+// belongsToTenant reports whether a Crossplane resource belongs to the tenant.
+// Managed resources are usually cluster-scoped, so the platform.io/tenant label
+// is checked against the tenant's name (the same key the IAM drift scanner
+// uses) as well as the tenant's labelSelector and namespaces.
+func belongsToTenant(item *unstructured.Unstructured, tenant *platformv1alpha1.Tenant) bool {
+	itemLabels := item.GetLabels()
+	if tenantLabel, ok := itemLabels["platform.io/tenant"]; ok {
+		if tenantLabel == tenant.Name || tenantLabel == tenant.Spec.DisplayName {
+			return true
+		}
+	}
+
+	if tenant.Spec.LabelSelector != nil && len(tenant.Spec.LabelSelector.MatchLabels) > 0 {
+		selector := labels.SelectorFromSet(labels.Set(tenant.Spec.LabelSelector.MatchLabels))
+		if selector.Matches(labels.Set(itemLabels)) {
+			return true
+		}
+	}
+
+	if ns := item.GetNamespace(); ns != "" {
+		for _, tenantNS := range tenant.Spec.Namespaces {
+			if ns == tenantNS {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // normalizeResourceState determines the state of a Crossplane resource
@@ -166,6 +175,20 @@ func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstru
 	conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
 	if err != nil || !found || len(conditions) == 0 {
 		return CrossplaneStateUnknown
+	}
+
+	// A failed reconcile shows up as Synced=False/ReconcileError while Ready
+	// often stays at "Creating", so check it first or the resource would look
+	// like it is still waiting.
+	for _, c := range conditions {
+		condition, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if condition["type"] == conditionTypeSynced && condition["status"] == conditionStatusFalse &&
+			condition["reason"] == "ReconcileError" {
+			return CrossplaneStateFailed
+		}
 	}
 
 	// Look for Ready condition (standard Crossplane pattern)
@@ -190,7 +213,7 @@ func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstru
 		switch status {
 		case conditionStatusTrue:
 			return CrossplaneStateReady
-		case "False":
+		case conditionStatusFalse:
 			// Check reason to distinguish between failed and waiting
 			if reason == "ReconcileError" || reason == "CreateFailed" || reason == "UpdateFailed" {
 				return CrossplaneStateFailed

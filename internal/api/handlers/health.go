@@ -451,37 +451,14 @@ func (h *HealthHandler) getCrossplaneSummary(ctx context.Context) *CrossplaneSum
 		summary.Compositions = len(compositions.Items)
 	}
 
-	// Count TenantIAMBundle XRs (cluster-scoped composite resources)
-	xrs := &unstructured.UnstructuredList{}
-	xrs.SetAPIVersion("platform.io/v1alpha1")
-	xrs.SetKind("TenantIAMBundleList")
-	if err := h.client.List(ctx, xrs); err == nil {
-		summary.XRs = len(xrs.Items)
-		// Count failed XRs by checking Ready condition
-		for _, item := range xrs.Items {
-			status, found, _ := unstructured.NestedMap(item.Object, "status")
-			if found {
-				conditions, found, _ := unstructured.NestedSlice(status, "conditions")
-				if found {
-					for _, cond := range conditions {
-						if condMap, ok := cond.(map[string]interface{}); ok {
-							if condMap["type"] == "Ready" && condMap["status"] == "False" {
-								summary.Failed++
-								break
-							}
-						}
-					}
-				}
-			}
+	// Count XRs and claims for every CompositeResourceDefinition in the cluster.
+	xrds := &unstructured.UnstructuredList{}
+	xrds.SetAPIVersion("apiextensions.crossplane.io/v1")
+	xrds.SetKind("CompositeResourceDefinitionList")
+	if err := h.client.List(ctx, xrds); err == nil {
+		for _, xrd := range xrds.Items {
+			h.countCompositeResources(ctx, &xrd, summary)
 		}
-	}
-
-	// Count Claims (namespaced)
-	claims := &unstructured.UnstructuredList{}
-	claims.SetAPIVersion("platform.io/v1alpha1")
-	claims.SetKind("TenantIAMBundleClaimList")
-	if err := h.client.List(ctx, claims); err == nil {
-		summary.Claims = len(claims.Items)
 	}
 
 	// Count paused Crossplane Managed Resources
@@ -498,6 +475,75 @@ func (h *HealthHandler) getCrossplaneSummary(ctx context.Context) *CrossplaneSum
 	}
 
 	return summary
+}
+
+// countCompositeResources adds one XRD's composite resources and claims to the
+// summary. An XR counts as failed when its last reconcile errored.
+func (h *HealthHandler) countCompositeResources(ctx context.Context, xrd *unstructured.Unstructured, summary *CrossplaneSummaryResponse) {
+	group, _, _ := unstructured.NestedString(xrd.Object, "spec", "group")
+	kind, _, _ := unstructured.NestedString(xrd.Object, "spec", "names", "kind")
+	claimKind, _, _ := unstructured.NestedString(xrd.Object, "spec", "claimNames", "kind")
+	version := xrdVersion(xrd)
+	if group == "" || kind == "" || version == "" {
+		return
+	}
+	apiVersion := group + "/" + version
+
+	xrs := &unstructured.UnstructuredList{}
+	xrs.SetAPIVersion(apiVersion)
+	xrs.SetKind(kind + "List")
+	if err := h.client.List(ctx, xrs); err == nil {
+		summary.XRs += len(xrs.Items)
+		for _, xr := range xrs.Items {
+			if hasReconcileError(&xr) {
+				summary.Failed++
+			}
+		}
+	}
+
+	if claimKind == "" {
+		return
+	}
+	claims := &unstructured.UnstructuredList{}
+	claims.SetAPIVersion(apiVersion)
+	claims.SetKind(claimKind + "List")
+	if err := h.client.List(ctx, claims); err == nil {
+		summary.Claims += len(claims.Items)
+	}
+}
+
+// xrdVersion returns the XRD's referenceable version, or its first served one.
+func xrdVersion(xrd *unstructured.Unstructured) string {
+	versions, _, _ := unstructured.NestedSlice(xrd.Object, "spec", "versions")
+	served := ""
+	for _, v := range versions {
+		version, ok := v.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := version["name"].(string)
+		if referenceable, _ := version["referenceable"].(bool); referenceable {
+			return name
+		}
+		if isServed, _ := version["served"].(bool); isServed && served == "" {
+			served = name
+		}
+	}
+	return served
+}
+
+// hasReconcileError reports whether a Crossplane object's Synced condition is
+// False with reason ReconcileError.
+func hasReconcileError(obj *unstructured.Unstructured) bool {
+	conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	for _, c := range conditions {
+		condition, ok := c.(map[string]interface{})
+		if ok && condition["type"] == "Synced" && condition["status"] == "False" &&
+			condition["reason"] == "ReconcileError" {
+			return true
+		}
+	}
+	return false
 }
 
 // enrichArgoSyncPolicyStats queries ArgoCD Applications and counts sync policy settings

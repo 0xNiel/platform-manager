@@ -125,7 +125,7 @@ func (r *RuleEvaluator) getAllResources(ctx context.Context) ([]*unstructured.Un
 		{Group: "", Version: "v1", Kind: "ResourceQuota"},
 
 		// ResourceSummaries (our own CRD)
-		{Group: "platform.io", Version: "v1alpha1", Kind: "ResourceSummary"},
+		{Group: "platform.platform.io", Version: "v1alpha1", Kind: "ResourceSummary"},
 	}
 
 	// Also scan IAM resources

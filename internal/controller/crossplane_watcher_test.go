@@ -122,6 +122,69 @@ var _ = Describe("CrossplaneWatcher", func() {
 				Expect(state).To(Equal(CrossplaneStateUnknown))
 			})
 		})
+
+		Context("when the reconcile errors while Ready is still Creating", func() {
+			It("should return Failed state", func() {
+				resource := &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"status": map[string]interface{}{
+							"conditions": []interface{}{
+								map[string]interface{}{
+									"type":   "Ready",
+									"status": "False",
+									"reason": "Creating",
+								},
+								map[string]interface{}{
+									"type":   "Synced",
+									"status": "False",
+									"reason": "ReconcileError",
+								},
+							},
+						},
+					},
+				}
+
+				watcher = &CrossplaneWatcher{}
+				state := watcher.normalizeResourceState(resource)
+				Expect(state).To(Equal(CrossplaneStateFailed))
+			})
+		})
+	})
+
+	Describe("belongsToTenant", func() {
+		tenant := &platformv1alpha1.Tenant{
+			ObjectMeta: metav1.ObjectMeta{Name: "tenant-alpha"},
+			Spec: platformv1alpha1.TenantSpec{
+				Namespaces: []string{"tenant-alpha"},
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"platform.io/tenant": "alpha"},
+				},
+			},
+		}
+
+		withLabels := func(namespace string, l map[string]string) *unstructured.Unstructured {
+			u := &unstructured.Unstructured{}
+			u.SetNamespace(namespace)
+			u.SetLabels(l)
+			return u
+		}
+
+		It("matches a cluster-scoped resource labeled with the tenant name", func() {
+			Expect(belongsToTenant(withLabels("", map[string]string{"platform.io/tenant": "tenant-alpha"}), tenant)).To(BeTrue())
+		})
+
+		It("matches the tenant's labelSelector", func() {
+			Expect(belongsToTenant(withLabels("", map[string]string{"platform.io/tenant": "alpha"}), tenant)).To(BeTrue())
+		})
+
+		It("matches a namespaced resource in a tenant namespace", func() {
+			Expect(belongsToTenant(withLabels("tenant-alpha", nil), tenant)).To(BeTrue())
+		})
+
+		It("does not match another tenant's resource", func() {
+			Expect(belongsToTenant(withLabels("", map[string]string{"platform.io/tenant": "tenant-beta"}), tenant)).To(BeFalse())
+			Expect(belongsToTenant(withLabels("tenant-beta", nil), tenant)).To(BeFalse())
+		})
 	})
 
 	Describe("ScanCrossplaneResources", func() {
