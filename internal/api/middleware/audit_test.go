@@ -11,6 +11,7 @@ import (
 	"errors"
 	"testing"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-logr/logr"
 )
 
@@ -163,7 +164,7 @@ func TestDefaultAuditLogger_WithRequestID(t *testing.T) {
 		Username: "test-user",
 		Role:     RoleAdmin,
 	})
-	ctx = context.WithValue(ctx, "requestID", "req-12345")
+	ctx = context.WithValue(ctx, chimiddleware.RequestIDKey, "req-12345")
 
 	logger.LogAction(ctx, "delete", "test-deployment", true, nil)
 

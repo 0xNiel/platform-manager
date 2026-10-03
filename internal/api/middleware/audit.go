@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-logr/logr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -82,11 +83,8 @@ func (a *DefaultAuditLogger) LogActionWithDetails(ctx context.Context, action st
 	}
 
 	// Extract request ID if available
-	if requestID := ctx.Value("requestID"); requestID != nil {
-		if id, ok := requestID.(string); ok {
-			entry.RequestID = id
-		}
-	}
+	// Set by chi's RequestID middleware, which the API server installs first.
+	entry.RequestID = chimiddleware.GetReqID(ctx)
 
 	// Log with structured fields
 	keysAndValues := []interface{}{
