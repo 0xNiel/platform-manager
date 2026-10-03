@@ -90,11 +90,8 @@ The inline policy shows up as `extra_privileges`. The unmanaged role does not sh
 The terminal is off by default. To try it locally:
 
 ```sh
-# Build the toolbox image and load it into kind
-make kind-load-toolbox
-
-# Create the toolbox namespace, ServiceAccount, and RBAC
-./helper-scripts/setup-phase6-terminal.sh
+# Build the toolbox image, load it into kind, and apply config/terminal
+make setup-terminal
 
 # Run the manager with the terminal on
 DEV_MODE=true AWS_ENDPOINT=http://localhost:4566 \

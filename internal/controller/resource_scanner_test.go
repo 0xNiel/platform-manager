@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	platformv1alpha1 "github.com/platform-manager/platform-manager/api/v1alpha1"
+	platformv1alpha1 "github.com/0xNiel/platform-manager/api/v1alpha1"
 )
 
 var _ = Describe("ResourceScanner", func() {

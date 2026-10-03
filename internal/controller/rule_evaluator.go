@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/platform-manager/platform-manager/internal/rules"
-	"github.com/platform-manager/platform-manager/internal/rules/builtin"
+	"github.com/0xNiel/platform-manager/internal/rules"
+	"github.com/0xNiel/platform-manager/internal/rules/builtin"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"

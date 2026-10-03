@@ -1,0 +1,82 @@
+# Resources the web terminal needs. Apply with `make setup-terminal`
+# (local kind) or `kubectl apply -k config/terminal`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: toolbox-sessions
+---
+# Identity for toolbox pods. Read-only, and no access to Secrets.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: toolbox-session
+  namespace: toolbox-sessions
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: toolbox-session
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "namespaces", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - aws.upbound.io
+      - iam.aws.upbound.io
+      - s3.aws.upbound.io
+      - dynamodb.aws.upbound.io
+      - pkg.crossplane.io
+      - apiextensions.crossplane.io
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["platform.platform.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: toolbox-session
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: toolbox-session
+subjects:
+  - kind: ServiceAccount
+    name: toolbox-session
+    namespace: toolbox-sessions
+---
+# Lets the in-cluster manager create toolbox pods and exec into them.
+# Not needed for `make run-local`, which uses your kubeconfig.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-manager-toolbox
+  namespace: toolbox-sessions
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-manager-toolbox
+  namespace: toolbox-sessions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-manager-toolbox
+subjects:
+  - kind: ServiceAccount
+    name: platform-manager-controller-manager
+    namespace: platform-manager-system

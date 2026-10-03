@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/0xNiel/platform-manager/internal/controller"
+	"github.com/0xNiel/platform-manager/internal/rules"
 	"github.com/go-chi/chi/v5"
-	"github.com/platform-manager/platform-manager/internal/controller"
-	"github.com/platform-manager/platform-manager/internal/rules"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 

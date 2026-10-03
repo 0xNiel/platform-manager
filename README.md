@@ -121,3 +121,7 @@ docs/               Architecture, API, security, development, and deployment doc
 ## Status
 
 This is a working prototype that runs end to end against kind and LocalStack. I ran a security review (`govulncheck`, `npm audit`, and a manual code review) and fixed every critical and high finding in the Go code. The remaining items, mostly dev-only npm advisories from Vue CLI and some hardening work, are listed in [docs/security.md](docs/security.md#known-gaps). Next on the list are moving the frontend from Vue CLI to Vite, detecting orphaned IAM roles that exist in AWS but not in Crossplane (the drift type exists, the scan does not yet), and keeping drift history so you can see trends over time.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,4 +1,4 @@
-module github.com/platform-manager/platform-manager
+module github.com/0xNiel/platform-manager
 
 go 1.24.5
 

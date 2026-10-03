@@ -297,6 +297,10 @@ kind-load-image: docker-build ## Load image into Kind cluster
 kind-load-toolbox: docker-build-toolbox ## Load toolbox image into Kind cluster
 	$(KIND) load docker-image $(TOOLBOX_IMG) --name $(KIND_CLUSTER_NAME)
 
+.PHONY: setup-terminal
+setup-terminal: kind-load-toolbox ## Load the toolbox image and apply web terminal namespace and RBAC
+	$(KUBECTL) apply -k config/terminal
+
 ##@ ArgoCD
 
 .PHONY: install-argocd

@@ -1,6 +1,6 @@
 package builtin
 
-import "github.com/platform-manager/platform-manager/internal/rules"
+import "github.com/0xNiel/platform-manager/internal/rules"
 
 // GetAllRules returns all built-in rules
 func GetAllRules() []rules.Rule {

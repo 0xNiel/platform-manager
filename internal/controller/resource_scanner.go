@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	platformv1alpha1 "github.com/platform-manager/platform-manager/api/v1alpha1"
+	platformv1alpha1 "github.com/0xNiel/platform-manager/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"

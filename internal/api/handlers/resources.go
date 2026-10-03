@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	platformv1alpha1 "github.com/platform-manager/platform-manager/api/v1alpha1"
+	platformv1alpha1 "github.com/0xNiel/platform-manager/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

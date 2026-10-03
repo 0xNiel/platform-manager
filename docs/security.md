@@ -63,7 +63,7 @@ A browser shell into the cluster is the riskiest feature here, so it has several
 | Authorization | Creating a session requires `terminal:use` (admin or infra) |
 | Isolation | Commands run in a separate toolbox pod, never in the manager process |
 | Pod security | UID 1000, `runAsNonRoot`, `allowPrivilegeEscalation: false`, all Linux capabilities dropped, CPU and memory limits |
-| Cluster access | The `toolbox-session` ServiceAccount can only get, list, and watch pods, workloads, Crossplane, ArgoCD, and Platform Manager resources. It cannot read Secrets. This RBAC is currently created by `helper-scripts/setup-phase6-terminal.sh` and is not yet part of `config/`. |
+| Cluster access | The `toolbox-session` ServiceAccount can only get, list, and watch pods, workloads, Crossplane, ArgoCD, and Platform Manager resources. It cannot read Secrets. Defined in `config/terminal/rbac.yaml`. |
 | WebSocket | `Origin` must be in `TERMINAL_ALLOWED_ORIGINS`, which blocks cross-site WebSocket hijacking |
 | Abuse limits | Token-bucket input limit (100 burst, 10/s), at most 20 concurrent sessions, 10-minute idle timeout |
 | Audit | Session start is logged with the user, session ID, and pod |

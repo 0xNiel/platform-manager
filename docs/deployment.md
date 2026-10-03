@@ -54,19 +54,24 @@ Build the toolbox image and make it pullable from the cluster:
 make docker-build-toolbox TOOLBOX_IMG=<registry>/platform-manager-toolbox:<tag>
 ```
 
-The terminal also needs:
+Then apply the terminal's namespace and RBAC:
+
+```sh
+kubectl apply -k config/terminal
+```
+
+`config/terminal/rbac.yaml` creates:
 
 1. The `toolbox-sessions` namespace.
 2. The `toolbox-session` ServiceAccount with a read-only ClusterRole.
-3. A Role in `toolbox-sessions` that lets the manager create, get, list, watch, and delete pods, and create `pods/exec`.
+3. A Role in `toolbox-sessions` that lets the manager's ServiceAccount create, get, list, watch, and delete pods, and create `pods/exec`.
 
-`helper-scripts/setup-phase6-terminal.sh` creates all three. Read it before running it against a real cluster.
+`make deploy` does not include it, so the terminal stays opt-in.
 
 ### What the manifests are missing
 
 - A Service for the API port (9080). The gateway needs one to route to the backend.
 - `env` entries for `ALLOWED_ORIGINS`, `TERMINAL_ALLOWED_ORIGINS`, and `AWS_REGION`, and an IRSA annotation on the ServiceAccount.
-- The terminal namespace and RBAC described above.
 - A NetworkPolicy so that only the gateway can reach port 9080. This one matters for security: the API trusts identity headers, so anything else that can reach the port can impersonate a user.
 
 ## Frontend

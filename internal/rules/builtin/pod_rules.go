@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/platform-manager/platform-manager/internal/rules"
+	"github.com/0xNiel/platform-manager/internal/rules"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

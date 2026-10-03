@@ -7,7 +7,7 @@ domain: platform.io
 layout:
 - go.kubebuilder.io/v4
 projectName: platform-manager
-repo: github.com/platform-manager/platform-manager
+repo: github.com/0xNiel/platform-manager
 resources:
 - api:
     crdVersion: v1
@@ -16,7 +16,7 @@ resources:
   domain: platform.io
   group: platform
   kind: Tenant
-  path: github.com/platform-manager/platform-manager/api/v1alpha1
+  path: github.com/0xNiel/platform-manager/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -24,7 +24,7 @@ resources:
   domain: platform.io
   group: platform
   kind: TenantHealth
-  path: github.com/platform-manager/platform-manager/api/v1alpha1
+  path: github.com/0xNiel/platform-manager/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -32,7 +32,7 @@ resources:
   domain: platform.io
   group: platform
   kind: ResourceSummary
-  path: github.com/platform-manager/platform-manager/api/v1alpha1
+  path: github.com/0xNiel/platform-manager/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -40,6 +40,6 @@ resources:
   domain: platform.io
   group: platform
   kind: PlatformHealth
-  path: github.com/platform-manager/platform-manager/api/v1alpha1
+  path: github.com/0xNiel/platform-manager/api/v1alpha1
   version: v1alpha1
 version: "3"

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	platformv1alpha1 "github.com/platform-manager/platform-manager/api/v1alpha1"
-	"github.com/platform-manager/platform-manager/internal/metrics"
+	platformv1alpha1 "github.com/0xNiel/platform-manager/api/v1alpha1"
+	"github.com/0xNiel/platform-manager/internal/metrics"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
