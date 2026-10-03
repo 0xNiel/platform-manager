@@ -161,7 +161,7 @@
 
 <script lang="ts">
 import { defineComponent, computed, ref, onMounted } from 'vue'
-import { api } from '../api/client'
+import apiClient, { api } from '../api/client'
 
 export default defineComponent({
   name: 'DashboardView',
@@ -252,15 +252,12 @@ export default defineComponent({
         
         // Update IAM Drift stats from dedicated endpoint
         try {
-          const driftResponse = await fetch('http://localhost:9080/api/v1/iam/drift/platform')
-          if (driftResponse.ok) {
-            const driftData = await driftResponse.json()
-            if (driftData.summary) {
-              iamDrift.value = {
-                totalRoles: driftData.summary.totalRoles || 0,
-                rolesWithDrift: driftData.summary.rolesWithDrift || 0,
-                extraPrivileges: driftData.summary.criticalDrifts || 0, // Map critical drifts to extra privileges
-              }
+          const { data: driftData } = await apiClient.get('/iam/drift/platform')
+          if (driftData.summary) {
+            iamDrift.value = {
+              totalRoles: driftData.summary.totalRoles || 0,
+              rolesWithDrift: driftData.summary.rolesWithDrift || 0,
+              extraPrivileges: driftData.summary.criticalDrifts || 0, // Map critical drifts to extra privileges
             }
           }
         } catch (driftError) {

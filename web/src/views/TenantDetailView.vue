@@ -148,7 +148,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, watch } from 'vue'
-import axios from 'axios'
+import apiClient from '../api/client'
 
 interface TenantDetail {
   id: string
@@ -225,11 +225,11 @@ export default defineComponent({
         error.value = null
 
         // Fetch tenant info
-        const tenantResponse = await axios.get(`http://localhost:9080/api/v1/tenants/${props.id}`)
+        const tenantResponse = await apiClient.get(`/tenants/${props.id}`)
         const tenantData = tenantResponse.data
 
         // Fetch tenant health
-        const healthResponse = await axios.get(`http://localhost:9080/api/v1/health/tenants/${props.id}`)
+        const healthResponse = await apiClient.get(`/health/tenants/${props.id}`)
         const healthData = healthResponse.data
 
         // Determine status
@@ -252,7 +252,7 @@ export default defineComponent({
         let cpu = '0m'
         let memory = '0Mi'
         try {
-          const metricsResponse = await axios.get(`http://localhost:9080/api/v1/metrics/tenants/${props.id}`)
+          const metricsResponse = await apiClient.get(`/metrics/tenants/${props.id}`)
           const metricsData = metricsResponse.data
           
           cpu = `${Math.round((metricsData.totalCpuCores || 0) * 1000)}m`
@@ -289,7 +289,7 @@ export default defineComponent({
     const loadResources = async () => {
       try {
         loadingResources.value = true
-        const response = await axios.get(`http://localhost:9080/api/v1/resources`)
+        const response = await apiClient.get(`/resources`)
         
         // ResourceSummary CRs have data in .spec
         interface ResourceSummaryItem {
@@ -330,7 +330,7 @@ export default defineComponent({
     const loadIamDrift = async () => {
       try {
         loadingIam.value = true
-        const response = await axios.get(`http://localhost:9080/api/v1/iam/drift/tenants/${props.id}`)
+        const response = await apiClient.get(`/iam/drift/tenants/${props.id}`)
         
         interface DriftDetail {
           resourceType: string
@@ -380,7 +380,7 @@ export default defineComponent({
     const loadArgoApps = async () => {
       try {
         loadingGitOps.value = true
-        const response = await axios.get(`http://localhost:9080/api/v1/resources`)
+        const response = await apiClient.get(`/resources`)
         
         interface ResourceSummaryItem {
           spec: {

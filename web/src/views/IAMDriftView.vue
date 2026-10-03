@@ -151,6 +151,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted } from 'vue'
 import axios from 'axios'
+import apiClient from '../api/client'
 
 interface TenantDriftSummary {
   tenantName: string
@@ -215,20 +216,18 @@ export default defineComponent({
     const selectedTenant = ref<string | null>(null)
     const selectedTenantDetails = ref<DriftResult[]>([])
 
-    const API_BASE = 'http://localhost:9080/api/v1'
-
     const loadDriftData = async () => {
       try {
         loading.value = true
         error.value = ''
 
         // Load platform summary
-        const platformResponse = await axios.get(`${API_BASE}/iam/drift/platform`)
+        const platformResponse = await apiClient.get(`/iam/drift/platform`)
         platformSummary.value = platformResponse.data.summary || {}
         lastScanTime.value = platformResponse.data.lastScanTime || ''
 
         // Load tenant summaries
-        const tenantsResponse = await axios.get(`${API_BASE}/iam/drift/tenants`)
+        const tenantsResponse = await apiClient.get(`/iam/drift/tenants`)
         tenants.value = tenantsResponse.data.tenants || []
       } catch (err: unknown) {
         const errorMessage = axios.isAxiosError(err) 
@@ -244,7 +243,7 @@ export default defineComponent({
     const triggerScan = async () => {
       try {
         scanning.value = true
-        await axios.post(`${API_BASE}/iam/drift/scan`)
+        await apiClient.post(`/iam/drift/scan`)
         
         // Wait a moment then reload
         setTimeout(loadDriftData, 2000)
@@ -263,7 +262,7 @@ export default defineComponent({
       selectedTenant.value = tenantName
       
       try {
-        const response = await axios.get(`${API_BASE}/iam/drift/tenants/${tenantName}`)
+        const response = await apiClient.get(`/iam/drift/tenants/${tenantName}`)
         selectedTenantDetails.value = response.data.details || []
       } catch (err: unknown) {
         console.error('Failed to load tenant details:', err)

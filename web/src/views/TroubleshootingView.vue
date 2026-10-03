@@ -283,7 +283,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
+import apiClient from '../api/client'
 
 interface ResourceRef {
   group?: string
@@ -334,7 +334,6 @@ interface Summary {
 export default defineComponent({
   name: 'TroubleshootingView',
   setup() {
-    const API_BASE = 'http://localhost:9080/api/v1'
     
     const summary = ref<Summary | null>(null)
     const findings = ref<Finding[]>([])
@@ -398,7 +397,7 @@ export default defineComponent({
 
     const fetchSummary = async () => {
       try {
-        const response = await axios.get(`${API_BASE}/troubleshooting/summary`)
+        const response = await apiClient.get(`/troubleshooting/summary`)
         summary.value = response.data
       } catch (error) {
         console.error('Failed to fetch troubleshooting summary:', error)
@@ -408,7 +407,7 @@ export default defineComponent({
     const fetchFindings = async () => {
       try {
         loading.value = true
-        const response = await axios.get(`${API_BASE}/troubleshooting/findings`)
+        const response = await apiClient.get(`/troubleshooting/findings`)
         findings.value = response.data.findings || []
       } catch (error) {
         console.error('Failed to fetch findings:', error)
@@ -425,7 +424,7 @@ export default defineComponent({
     const triggerScan = async () => {
       try {
         scanning.value = true
-        await axios.post(`${API_BASE}/troubleshooting/scan`)
+        await apiClient.post(`/troubleshooting/scan`)
         // Wait a bit for scan to complete, then refresh
         setTimeout(async () => {
           await refreshFindings()
@@ -448,7 +447,7 @@ export default defineComponent({
 
     const resolveFinding = async (id: string) => {
       try {
-        await axios.post(`${API_BASE}/troubleshooting/findings/${id}/resolve`)
+        await apiClient.post(`/troubleshooting/findings/${id}/resolve`)
         await refreshFindings()
       } catch (error) {
         console.error('Failed to resolve finding:', error)

@@ -37,15 +37,29 @@ func DefaultCORSConfig() CORSConfig {
 	}
 }
 
+const (
+	prodAllowedHeaders = "Accept, Authorization, Content-Type, X-CSRF-Token, " +
+		"X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Groups"
+	devAllowedHeaders = prodAllowedHeaders + ", X-Dev-Role"
+)
+
 // CORSWithConfig adds CORS headers to responses with configuration
 func CORSWithConfig(config CORSConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// In dev mode, allow all origins
+			allowedHeaders := prodAllowedHeaders
+
+			// In dev mode, allow any origin. Echo it back rather than sending "*",
+			// which browsers reject alongside Allow-Credentials.
 			if config.DevMode {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Vary", "Origin")
+				}
+				// The UI sends X-Dev-Role in development, so the preflight must allow it.
+				allowedHeaders = devAllowedHeaders
 			} else if isAllowedOrigin(origin, config.AllowedOrigins) {
 				// In production, only allow configured origins
 				w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -53,7 +67,7 @@ func CORSWithConfig(config CORSConfig) func(http.Handler) http.Handler {
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-CSRF-Token, X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Groups")
+			w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "300")
 

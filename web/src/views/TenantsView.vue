@@ -85,7 +85,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import apiClient from '../api/client'
 
 interface Tenant {
   id: string
@@ -149,7 +149,7 @@ export default defineComponent({
         error.value = null
 
         // Fetch platform health which includes tenant summaries
-        const healthResponse = await axios.get('http://localhost:9080/api/v1/health/platform')
+        const healthResponse = await apiClient.get('/health/platform')
         const platformHealth = healthResponse.data
 
         // Transform the data to match our UI structure
@@ -191,8 +191,7 @@ export default defineComponent({
         await Promise.all(
           tenants.value.map(async (tenant) => {
             try {
-              const metricsResponse = await axios.get<MetricsResponse>(
-                `http://localhost:9080/api/v1/metrics/tenants/${tenant.id}`
+              const metricsResponse = await apiClient.get<MetricsResponse>(`/metrics/tenants/${tenant.id}`
               )
               const metrics = metricsResponse.data
               
@@ -213,8 +212,7 @@ export default defineComponent({
         // Fetch ArgoCD apps per tenant
         for (const tenant of tenants.value) {
           try {
-            const healthResponse = await axios.get<TenantHealthResponse>(
-              `http://localhost:9080/api/v1/health/tenants/${tenant.id}`
+            const healthResponse = await apiClient.get<TenantHealthResponse>(`/health/tenants/${tenant.id}`
             )
             const tenantHealth = healthResponse.data
             
