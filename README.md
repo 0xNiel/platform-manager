@@ -2,7 +2,11 @@
 
 A Kubernetes controller and web UI for running a multi-tenant Crossplane platform on AWS. It pulls Crossplane, ArgoCD, Kubernetes workloads, and live AWS IAM state into one place, so you can start at a platform-wide health view and drill down to a single failing resource.
 
-I run a Crossplane-based platform on AWS, and I built this to answer the questions that come up when something breaks. Which tenants are unhealthy right now? Which Crossplane resources are paused or stuck? Has anyone changed an IAM role in the console that Crossplane doesn't know about? Without it, answering those takes a pile of `kubectl get` calls across several namespaces, the ArgoCD UI, and the AWS console.
+The idea behind this project stems from the practice of "Visual Management" and my experience running a Crossplane-based platform on AWS. I built this to explore answers to multiple questions that come up when something breaks. Which tenants are unhealthy right now? Which Crossplane resources are paused or stuck? Has anyone changed an IAM role in the console that Crossplane or ArgoCD doesn't know about because they are paused? 
+
+Any good plaform engineer knows how to troubleshoot each of these issues. However, when working on huge platforms, it is ideal to have the system push information to you vs you having to pull it from the system. Without this, it would take a pile of `kubectl get` and `aws` calls across several namespaces, the ArgoCD UI, and the AWS console to get the answers.
+
+This is fully experimental. It is provided As-Is. Test locally, then in a dev environment, before trying it in prod.
 
 ![Platform overview dashboard](docs/images/1-dashboard.png)
 
