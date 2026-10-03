@@ -8,18 +8,16 @@ The local setup is a kind cluster with ArgoCD and Crossplane. LocalStack stands 
 - Docker (Docker Desktop on macOS, so that `host.docker.internal` resolves from inside kind)
 - kind, kubectl, Helm
 - Node 20 and npm
-- LocalStack CLI, or just Docker
 - `awslocal` (`pip install awscli-local`), used to create drift on purpose
 
 ## 1. Start LocalStack
 
-Run it in its own terminal:
-
 ```sh
-localstack start
-# or
-docker run --rm -p 4566:4566 localstack/localstack
+make localstack-start
+make localstack-health   # wait until iam and sts show "available"
 ```
+
+This runs `localstack/localstack:4.12.0` in Docker. Current LocalStack releases refuse to start without an account (`LOCALSTACK_AUTH_TOKEN`). 4.12.0 does not need one, so the image is pinned to it. Set `LOCALSTACK_IMAGE` to use a different one.
 
 The Crossplane AWS provider in the cluster reaches it at `http://host.docker.internal:4566` (`LOCALSTACK_ENDPOINT` in the Makefile). On Linux, change that to an address the kind node can reach.
 

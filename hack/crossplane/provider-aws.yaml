@@ -32,11 +32,12 @@ spec:
                   value: "test"
                 - name: AWS_SECRET_ACCESS_KEY
                   value: "test"
+              # Upjet providers load a large Terraform schema at startup. Tighter
+              # limits (256Mi / 200m) left them stuck starting or OOMKilled.
               resources:
                 limits:
-                  memory: 256Mi
-                  cpu: 200m
+                  memory: 1Gi
                 requests:
-                  memory: 128Mi
+                  memory: 256Mi
                   cpu: 100m
 

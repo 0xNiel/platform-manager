@@ -244,6 +244,8 @@ endef
 # Development cluster variables
 KIND_CLUSTER_NAME ?= platform-manager
 LOCALSTACK_ENDPOINT ?= http://host.docker.internal:4566
+# Current LocalStack releases require an account (LOCALSTACK_AUTH_TOKEN). 4.12.0 does not, and is what this project was tested against.
+LOCALSTACK_IMAGE ?= localstack/localstack:4.12.0
 AWS_REGION ?= us-east-1
 TOOLBOX_IMG ?= platform-manager-toolbox:dev
 CROSSPLANE_VERSION ?= 1.20.0
@@ -255,10 +257,10 @@ dev-up: kind-create install-argocd install-crossplane setup-localstack-provider 
 	@echo "[OK] Development environment ready!"
 	@echo ""
 	@echo "[INFO] Quick Reference:"
-	@echo "   ArgoCD UI: https://localhost:9080 (or use: make argocd-port-forward)"
+	@echo "   ArgoCD UI: make argocd-port-forward, then https://localhost:8443"
 	@echo "   ArgoCD Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
-	@echo "   Platform API: http://localhost:9081"
-	@echo "   Frontend Dev: http://localhost:9082"
+	@echo "   Platform API: http://localhost:9080 (make run-local)"
+	@echo "   Frontend Dev: http://localhost:9082 (make web-dev)"
 	@echo "   LocalStack: $(LOCALSTACK_ENDPOINT)"
 	@echo ""
 	@echo "[TIP] Useful commands:"
@@ -354,25 +356,22 @@ setup-localstack-provider: ## Configure Crossplane to use LocalStack
 ##@ LocalStack
 
 .PHONY: localstack-start
-localstack-start: ## Start LocalStack (run in separate terminal)
-	@echo "Starting LocalStack..."
-	@echo "NOTE: Run this in a separate terminal or use Docker:"
-	@echo "  docker run --rm -p 4566:4566 -p 4510-4559:4510-4559 localstack/localstack"
-	@echo ""
-	@echo "Or if you have localstack CLI:"
-	@echo "  localstack start"
-	@echo ""
-	@echo "Available services (Community):"
-	@echo "  IAM, STS, S3, Lambda, EC2, DynamoDB, SQS, SNS, Kinesis,"
-	@echo "  Route53, CloudWatch, KMS, Secrets Manager, and more"
+localstack-start: ## Start LocalStack in Docker (detached, pinned to LOCALSTACK_IMAGE)
+	@$(CONTAINER_TOOL) rm -f localstack-main >/dev/null 2>&1 || true
+	$(CONTAINER_TOOL) run -d --name localstack-main -p 4566:4566 -p 4510-4559:4510-4559 $(LOCALSTACK_IMAGE)
+	@echo "[OK] LocalStack starting on http://localhost:4566 (check with: make localstack-health)"
+
+.PHONY: localstack-stop
+localstack-stop: ## Stop the LocalStack container
+	$(CONTAINER_TOOL) rm -f localstack-main
 
 .PHONY: localstack-health
 localstack-health: ## Check LocalStack health
-	@curl -s $(LOCALSTACK_ENDPOINT)/_localstack/health | jq .
+	@curl -s http://localhost:4566/_localstack/health | jq .
 
 .PHONY: localstack-status
 localstack-status: ## Show LocalStack service status
-	@localstack status services 2>/dev/null || curl -s $(LOCALSTACK_ENDPOINT)/_localstack/health | jq '.services'
+	@localstack status services 2>/dev/null || curl -s http://localhost:4566/_localstack/health | jq '.services'
 
 .PHONY: localstack-create-drift
 localstack-create-drift: ## Create IAM drift in LocalStack for testing

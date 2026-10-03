@@ -74,8 +74,8 @@ See [docs/architecture.md](docs/architecture.md) for the data model, the reconci
 You need Go 1.24+, Docker, kind, kubectl, Helm, Node 20, and the LocalStack CLI (or Docker).
 
 ```sh
-# 1. Start LocalStack in a separate terminal. It stands in for AWS IAM.
-localstack start
+# 1. Start LocalStack (pinned to 4.12.0, which needs no account). It stands in for AWS IAM.
+make localstack-start
 
 # 2. Create a kind cluster with ArgoCD, Crossplane, and seeded tenants
 make dev-up

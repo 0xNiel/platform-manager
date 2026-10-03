@@ -2,10 +2,8 @@
 # Kind cluster configuration for Platform Manager development
 # Using single node to reduce resource usage for local dev
 #
-# Port mappings (change these if you have conflicts):
-#   ArgoCD UI:     http://localhost:9080
-#   Platform API:  http://localhost:9081
-#   Frontend dev:  http://localhost:9082
+# No host port mappings: the manager (:9080) and UI dev server (:9082) run on
+# the host, and ArgoCD is reached with `make argocd-port-forward`.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: platform-manager
@@ -17,19 +15,6 @@ nodes:
         nodeRegistration:
           kubeletExtraArgs:
             node-labels: "ingress-ready=true"
-    extraPortMappings:
-      # ArgoCD UI (using 9080 to avoid conflicts with common ports)
-      - containerPort: 30080
-        hostPort: 9080
-        protocol: TCP
-      # Platform Manager API
-      - containerPort: 30081
-        hostPort: 9081
-        protocol: TCP
-      # Platform Manager Frontend (dev) - avoiding 3000 which is commonly used
-      - containerPort: 30082
-        hostPort: 9082
-        protocol: TCP
 # Uncomment below to add worker nodes if needed (requires more Docker resources)
 # - role: worker
 # - role: worker
