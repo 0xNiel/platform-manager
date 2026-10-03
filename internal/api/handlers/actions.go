@@ -25,6 +25,12 @@ import (
 
 var actionsLog = logf.Log.WithName("actions-handler")
 
+// crossplanePausedAnnotation stops Crossplane from reconciling a resource when set to "true".
+const (
+	crossplanePausedAnnotation = "crossplane.io/paused"
+	annotationValueTrue        = "true"
+)
+
 // ActionsHandler handles mutating operations on resources
 type ActionsHandler struct {
 	client      client.Client
@@ -32,9 +38,9 @@ type ActionsHandler struct {
 }
 
 // NewActionsHandler creates a new ActionsHandler
-func NewActionsHandler(client client.Client, auditLogger middleware.AuditLogger) *ActionsHandler {
+func NewActionsHandler(c client.Client, auditLogger middleware.AuditLogger) *ActionsHandler {
 	return &ActionsHandler{
-		client:      client,
+		client:      c,
 		auditLogger: auditLogger,
 	}
 }
@@ -320,7 +326,7 @@ func (h *ActionsHandler) PauseCrossplaneResource(w http.ResponseWriter, r *http.
 	}
 
 	// Check if already paused
-	if annotations["crossplane.io/paused"] == "true" {
+	if annotations[crossplanePausedAnnotation] == annotationValueTrue {
 		actionsLog.Info("Resource already paused", "resource", resourceID)
 		h.auditLogger.LogActionWithDetails(ctx, "crossplane:pause", req.Name, resourceID, true, nil)
 		WriteJSON(w, http.StatusOK, ActionResponse{
@@ -334,7 +340,7 @@ func (h *ActionsHandler) PauseCrossplaneResource(w http.ResponseWriter, r *http.
 		return
 	}
 
-	annotations["crossplane.io/paused"] = "true"
+	annotations[crossplanePausedAnnotation] = annotationValueTrue
 	resource.SetAnnotations(annotations)
 
 	// Update the resource
@@ -407,7 +413,7 @@ func (h *ActionsHandler) UnpauseCrossplaneResource(w http.ResponseWriter, r *htt
 	}
 
 	// Check if not paused
-	if annotations["crossplane.io/paused"] != "true" {
+	if annotations[crossplanePausedAnnotation] != annotationValueTrue {
 		actionsLog.Info("Resource not paused", "resource", resourceID)
 		h.auditLogger.LogActionWithDetails(ctx, "crossplane:unpause", req.Name, resourceID, true, nil)
 		WriteJSON(w, http.StatusOK, ActionResponse{
@@ -421,7 +427,7 @@ func (h *ActionsHandler) UnpauseCrossplaneResource(w http.ResponseWriter, r *htt
 		return
 	}
 
-	delete(annotations, "crossplane.io/paused")
+	delete(annotations, crossplanePausedAnnotation)
 	resource.SetAnnotations(annotations)
 
 	// Update the resource

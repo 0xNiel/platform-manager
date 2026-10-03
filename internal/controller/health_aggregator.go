@@ -57,10 +57,7 @@ func (a *HealthAggregator) AggregateHealth(ctx context.Context, tenant *platform
 	status.CrossplaneResources = crossplaneCounts
 
 	// Scan Kubernetes resources
-	k8sCounts, err := a.scanKubernetesResources(ctx, tenant)
-	if err != nil {
-		log.Error(err, "Failed to scan Kubernetes resources")
-	}
+	k8sCounts := a.scanKubernetesResources(ctx, tenant)
 	status.KubernetesResources = k8sCounts
 
 	// Get IAM drift from scanner if available
@@ -106,7 +103,7 @@ func (a *HealthAggregator) AggregateHealth(ctx context.Context, tenant *platform
 	status.OverallHealth = a.calculateOverallHealth(status)
 
 	// Aggregate top issues
-	status.TopIssues = a.collectTopIssues(ctx, status, crossplaneCounts, k8sCounts)
+	status.TopIssues = a.collectTopIssues(status, crossplaneCounts, k8sCounts)
 
 	log.Info("Aggregated health for tenant",
 		"tenant", tenant.Name,
@@ -118,7 +115,8 @@ func (a *HealthAggregator) AggregateHealth(ctx context.Context, tenant *platform
 }
 
 // scanKubernetesResources scans standard Kubernetes resources in tenant namespaces
-func (a *HealthAggregator) scanKubernetesResources(ctx context.Context, tenant *platformv1alpha1.Tenant) (platformv1alpha1.ResourceStateCounts, error) {
+// List failures are logged and skipped so one bad namespace doesn't hide the rest.
+func (a *HealthAggregator) scanKubernetesResources(ctx context.Context, tenant *platformv1alpha1.Tenant) platformv1alpha1.ResourceStateCounts {
 	log := logf.FromContext(ctx).WithName("health-aggregator")
 
 	counts := platformv1alpha1.ResourceStateCounts{}
@@ -173,7 +171,7 @@ func (a *HealthAggregator) scanKubernetesResources(ctx context.Context, tenant *
 		}
 	}
 
-	return counts, nil
+	return counts
 }
 
 // normalizeDeploymentState determines the state of a Deployment
@@ -336,7 +334,7 @@ func (a *HealthAggregator) calculateOverallHealth(status *platformv1alpha1.Tenan
 }
 
 // collectTopIssues collects the top issues for the tenant
-func (a *HealthAggregator) collectTopIssues(ctx context.Context, status *platformv1alpha1.TenantHealthStatus, crossplaneCounts, k8sCounts platformv1alpha1.ResourceStateCounts) []platformv1alpha1.Issue {
+func (a *HealthAggregator) collectTopIssues(status *platformv1alpha1.TenantHealthStatus, crossplaneCounts, k8sCounts platformv1alpha1.ResourceStateCounts) []platformv1alpha1.Issue {
 	issues := []platformv1alpha1.Issue{}
 
 	// Issue for failed Crossplane resources

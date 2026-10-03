@@ -72,8 +72,10 @@ func main() {
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&apiAddr, "api-bind-address", ":9080", "The address the API server binds to.")
-	flag.StringVar(&prometheusURL, "prometheus-url", "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090", "The URL of the Prometheus server.")
-	flag.StringVar(&iamDriftScanInterval, "iam-drift-scan-interval", "5m", "The interval for IAM drift scanning (e.g., 5m, 1h)")
+	flag.StringVar(&prometheusURL, "prometheus-url",
+		"http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090", "The URL of the Prometheus server.")
+	flag.StringVar(&iamDriftScanInterval, "iam-drift-scan-interval", "5m",
+		"The interval for IAM drift scanning (e.g., 5m, 1h)")
 	flag.StringVar(&ruleEvalInterval, "rule-eval-interval", "2m", "The interval for rule evaluation (e.g., 2m, 5m, 10m)")
 	flag.BoolVar(&enableTerminal, "enable-terminal", false, "Enable web terminal feature")
 	flag.StringVar(&terminalNamespace, "terminal-namespace", "toolbox-sessions", "Namespace for terminal toolbox pods")
@@ -248,7 +250,8 @@ func main() {
 	}
 
 	ruleEvaluator := controller.NewRuleEvaluator(mgr, evalInterval)
-	setupLog.Info("Rule evaluator initialized", "interval", evalInterval, "rules", len(ruleEvaluator.GetEngine().GetRules()))
+	setupLog.Info("Rule evaluator initialized",
+		"interval", evalInterval, "rules", len(ruleEvaluator.GetEngine().GetRules()))
 	if err := mgr.Add(ruleEvaluator); err != nil {
 		setupLog.Error(err, "unable to add rule evaluator to manager")
 		os.Exit(1)

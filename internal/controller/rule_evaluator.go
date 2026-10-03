@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -72,10 +71,7 @@ func (r *RuleEvaluator) evaluate(ctx context.Context) error {
 	logger.Info("starting rule evaluation")
 
 	// Get all resources to evaluate
-	resources, tenantMap, err := r.getAllResources(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get resources: %w", err)
-	}
+	resources, tenantMap := r.getAllResources(ctx)
 
 	logger.Info("resources collected", "count", len(resources))
 
@@ -110,7 +106,7 @@ func (r *RuleEvaluator) evaluate(ctx context.Context) error {
 }
 
 // getAllResources collects all resources that should be evaluated
-func (r *RuleEvaluator) getAllResources(ctx context.Context) ([]*unstructured.Unstructured, map[string]string, error) {
+func (r *RuleEvaluator) getAllResources(ctx context.Context) ([]*unstructured.Unstructured, map[string]string) {
 	var allResources []*unstructured.Unstructured
 	tenantMap := make(map[string]string)
 
@@ -169,7 +165,7 @@ func (r *RuleEvaluator) getAllResources(ctx context.Context) ([]*unstructured.Un
 		}
 	}
 
-	return allResources, tenantMap, nil
+	return allResources, tenantMap
 }
 
 // GetEngine returns the rule engine for API access

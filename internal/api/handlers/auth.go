@@ -7,7 +7,6 @@ SPDX-License-Identifier: MIT
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/0xNiel/platform-manager/internal/api/middleware"
@@ -40,8 +39,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 		"capabilities": capStrings,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // GetCapabilities returns user capabilities
@@ -70,6 +68,5 @@ func (h *AuthHandler) GetCapabilities(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }

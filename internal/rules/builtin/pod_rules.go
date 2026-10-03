@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const kindPod = "Pod"
+
 // CrashLoopBackOffRule detects pods in CrashLoopBackOff state
 type CrashLoopBackOffRule struct{}
 
@@ -28,7 +30,7 @@ func (r *CrashLoopBackOffRule) Severity() rules.Severity {
 }
 
 func (r *CrashLoopBackOffRule) AppliesTo(resource *unstructured.Unstructured) bool {
-	return resource.GetKind() == "Pod"
+	return resource.GetKind() == kindPod
 }
 
 func (r *CrashLoopBackOffRule) Evaluate(ctx rules.RuleContext) ([]rules.Finding, error) {
@@ -97,7 +99,7 @@ func (r *ImagePullBackOffRule) Severity() rules.Severity {
 }
 
 func (r *ImagePullBackOffRule) AppliesTo(resource *unstructured.Unstructured) bool {
-	return resource.GetKind() == "Pod"
+	return resource.GetKind() == kindPod
 }
 
 func (r *ImagePullBackOffRule) Evaluate(ctx rules.RuleContext) ([]rules.Finding, error) {
@@ -172,7 +174,7 @@ func (r *PodPendingRule) Severity() rules.Severity {
 }
 
 func (r *PodPendingRule) AppliesTo(resource *unstructured.Unstructured) bool {
-	return resource.GetKind() == "Pod"
+	return resource.GetKind() == kindPod
 }
 
 func (r *PodPendingRule) Evaluate(ctx rules.RuleContext) ([]rules.Finding, error) {

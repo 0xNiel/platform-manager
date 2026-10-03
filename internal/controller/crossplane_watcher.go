@@ -41,6 +41,16 @@ const (
 	CrossplaneStatePaused  CrossplaneResourceState = "Paused"
 )
 
+const (
+	// crossplanePausedAnnotation stops Crossplane from reconciling a resource when set to "true".
+	crossplanePausedAnnotation = "crossplane.io/paused"
+	annotationValueTrue        = "true"
+
+	conditionTypeSynced    = "Synced"
+	conditionStatusTrue    = "True"
+	conditionStatusUnknown = "Unknown"
+)
+
 // Crossplane resource GVKs to watch
 var crossplaneGVKs = []schema.GroupVersionKind{
 	// Crossplane AWS IAM resources
@@ -148,7 +158,7 @@ func (w *CrossplaneWatcher) listResourcesByGVK(ctx context.Context, gvk schema.G
 func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstructured) CrossplaneResourceState {
 	// Check if resource is paused
 	annotations := resource.GetAnnotations()
-	if paused, ok := annotations["crossplane.io/paused"]; ok && paused == "true" {
+	if paused, ok := annotations[crossplanePausedAnnotation]; ok && paused == annotationValueTrue {
 		return CrossplaneStatePaused
 	}
 
@@ -178,7 +188,7 @@ func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstru
 		reason, _ := condition["reason"].(string)
 
 		switch status {
-		case "True":
+		case conditionStatusTrue:
 			return CrossplaneStateReady
 		case "False":
 			// Check reason to distinguish between failed and waiting
@@ -186,7 +196,7 @@ func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstru
 				return CrossplaneStateFailed
 			}
 			return CrossplaneStateWaiting
-		case "Unknown":
+		case conditionStatusUnknown:
 			return CrossplaneStateUnknown
 		}
 	}
@@ -199,7 +209,7 @@ func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstru
 		}
 
 		condType, ok := condition["type"].(string)
-		if !ok || condType != "Synced" {
+		if !ok || condType != conditionTypeSynced {
 			continue
 		}
 
@@ -208,7 +218,7 @@ func (w *CrossplaneWatcher) normalizeResourceState(resource *unstructured.Unstru
 			continue
 		}
 
-		if status == "True" {
+		if status == conditionStatusTrue {
 			// Synced but not ready means waiting
 			return CrossplaneStateWaiting
 		}

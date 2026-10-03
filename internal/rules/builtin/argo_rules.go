@@ -288,12 +288,12 @@ func (r *IAMExtraPrivilegesRule) Evaluate(ctx rules.RuleContext) ([]rules.Findin
 		return nil, nil
 	}
 
-	driftType, _ := annotations["platform.io/drift-type"]
+	driftType := annotations["platform.io/drift-type"]
 	if driftType != "extra_privileges" && driftType != "policy_mismatch" {
 		return nil, nil
 	}
 
-	driftMessage, _ := annotations["platform.io/drift-message"]
+	driftMessage := annotations["platform.io/drift-message"]
 
 	finding := rules.CreateFinding(
 		r,
@@ -320,6 +320,8 @@ func parseSimpleQuantity(s string) int64 {
 	s = strings.TrimSuffix(s, "m") // millicores
 
 	var val int64
-	fmt.Sscanf(s, "%d", &val)
+	if _, err := fmt.Sscanf(s, "%d", &val); err != nil {
+		return 0
+	}
 	return val
 }

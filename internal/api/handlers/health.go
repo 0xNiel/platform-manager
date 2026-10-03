@@ -8,7 +8,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -20,17 +19,13 @@ import (
 
 // Healthz is a simple health check endpoint
 func Healthz(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // Readyz checks if the server is ready to receive traffic
 func Readyz(w http.ResponseWriter, r *http.Request) {
 	// TODO: Add actual readiness checks (e.g., can connect to K8s API)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
 // HealthHandler handles health-related API requests

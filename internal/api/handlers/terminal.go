@@ -8,7 +8,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -156,8 +155,7 @@ func (h *TerminalHandler) CreateSession(w http.ResponseWriter, r *http.Request) 
 		"wsUrl":     fmt.Sprintf("/api/v1/terminal/sessions/%s/ws", session.ID),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // ListSessions lists all active sessions
@@ -165,8 +163,7 @@ func (h *TerminalHandler) CreateSession(w http.ResponseWriter, r *http.Request) 
 func (h *TerminalHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	sessions := h.manager.ListSessions()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"sessions": sessions,
 		"count":    len(sessions),
 	})
@@ -193,8 +190,7 @@ func (h *TerminalHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 		"lastActivity": session.LastActivity,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // DeleteSession deletes a terminal session
@@ -260,8 +256,8 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 	// Ensure cleanup on function exit
 	defer func() {
 		h.logger.Info("cleaning up websocket connection", "sessionId", sessionID)
-		cancel() // Cancel the exec context
-		conn.Close()
+		cancel()         // Cancel the exec context
+		_ = conn.Close() // Teardown: the client may already be gone
 
 		// Clear the connection from session
 		session.ExecMu.Lock()
@@ -277,12 +273,12 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 	// Create pipes for stdout/stderr
 	stdoutReader, stdoutWriter := io.Pipe()
 
-	// Ensure pipes are closed on exit
+	// Ensure pipes are closed on exit. io.Pipe Close always returns nil.
 	defer func() {
-		stdinWriter.Close()
-		stdinReader.Close()
-		stdoutWriter.Close()
-		stdoutReader.Close()
+		_ = stdinWriter.Close()
+		_ = stdinReader.Close()
+		_ = stdoutWriter.Close()
+		_ = stdoutReader.Close()
 	}()
 
 	// Channel to signal goroutines to stop
@@ -291,7 +287,7 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 
 	// Goroutine to read from WebSocket and write to stdin pipe
 	go func() {
-		defer stdinWriter.Close()
+		defer func() { _ = stdinWriter.Close() }()
 		for {
 			select {
 			case <-done:
@@ -332,7 +328,7 @@ func (h *TerminalHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 
 	// Goroutine to read from stdout pipe and write to WebSocket
 	go func() {
-		defer stdoutReader.Close()
+		defer func() { _ = stdoutReader.Close() }()
 		buf := make([]byte, 8192)
 		for {
 			select {
@@ -425,40 +421,7 @@ func (h *TerminalHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		"hasAccess":   middleware.HasCapability(user, middleware.CapUseTerminal),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-// terminalStreamHandler handles bidirectional streaming
-type terminalStreamHandler struct {
-	conn       *websocket.Conn
-	session    *terminal.Session
-	manager    *terminal.Manager
-	logger     logr.Logger
-	resizeChan chan remotecommand.TerminalSize
-}
-
-func (h *terminalStreamHandler) Read(p []byte) (int, error) {
-	_, message, err := h.conn.ReadMessage()
-	if err != nil {
-		h.logger.Error(err, "websocket read error")
-		return 0, err
-	}
-
-	// Update activity
-	h.manager.UpdateActivity(h.session.ID)
-
-	n := copy(p, message)
-	return n, nil
-}
-
-func (h *terminalStreamHandler) Write(p []byte) (int, error) {
-	err := h.conn.WriteMessage(websocket.BinaryMessage, p)
-	if err != nil {
-		h.logger.Error(err, "websocket write error")
-		return 0, err
-	}
-	return len(p), nil
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // terminalSizeQueue implements remotecommand.TerminalSizeQueue

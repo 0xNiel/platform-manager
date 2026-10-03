@@ -128,8 +128,7 @@ func (h *ResourcesHandler) ListResources(w http.ResponseWriter, r *http.Request)
 		Resources: filteredResources,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // GetResource handles GET /api/v1/resources/{name}
@@ -162,7 +161,7 @@ func (h *ResourcesHandler) GetResource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if YAML is requested
-	if r.URL.Query().Get("yaml") == "true" {
+	if queryFlag(r, "yaml") {
 		yaml, err := h.getResourceYAML(ctx, resourceSummary)
 		if err == nil {
 			response.YAML = yaml
@@ -170,7 +169,7 @@ func (h *ResourcesHandler) GetResource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if events are requested
-	if r.URL.Query().Get("events") == "true" {
+	if queryFlag(r, "events") {
 		events, err := h.getResourceEvents(ctx, resourceSummary)
 		if err == nil {
 			response.Events = events
@@ -178,15 +177,11 @@ func (h *ResourcesHandler) GetResource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if tree is requested
-	if r.URL.Query().Get("tree") == "true" {
-		tree, err := h.getOwnershipTree(ctx, resourceSummary)
-		if err == nil {
-			response.Tree = tree
-		}
+	if queryFlag(r, "tree") {
+		response.Tree = h.getOwnershipTree(ctx, resourceSummary)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // ListTenantResources handles GET /api/v1/tenants/{id}/resources
@@ -244,8 +239,7 @@ func (h *ResourcesHandler) ListTenantResources(w http.ResponseWriter, r *http.Re
 		Resources: filteredResources,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // getResourceYAML retrieves the raw YAML for a resource
@@ -312,10 +306,11 @@ func (h *ResourcesHandler) getResourceEvents(ctx context.Context, summary *platf
 }
 
 // getOwnershipTree builds the ownership tree for a resource
-func (h *ResourcesHandler) getOwnershipTree(ctx context.Context, summary *platformv1alpha1.ResourceSummary) (*OwnershipTree, error) {
+// If dependents can't be listed, the tree is returned without them.
+func (h *ResourcesHandler) getOwnershipTree(ctx context.Context, summary *platformv1alpha1.ResourceSummary) *OwnershipTree {
 	tree := &OwnershipTree{
 		Resource: platformv1alpha1.OwnerRef{
-			APIVersion: fmt.Sprintf("%s/%s", summary.Spec.Group, summary.Spec.Version),
+			APIVersion: schema.GroupVersion{Group: summary.Spec.Group, Version: summary.Spec.Version}.String(),
 			Kind:       summary.Spec.Kind,
 			Name:       summary.Spec.Name,
 			Namespace:  summary.Spec.Namespace,
@@ -335,7 +330,7 @@ func (h *ResourcesHandler) getOwnershipTree(ctx context.Context, summary *platfo
 		tree.Dependents = dependents
 	}
 
-	return tree, nil
+	return tree
 }
 
 // findDependents finds resources owned by the given resource

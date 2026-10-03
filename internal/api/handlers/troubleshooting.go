@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/0xNiel/platform-manager/internal/controller"
@@ -40,8 +39,7 @@ func (h *TroubleshootingHandler) GetSummary(w http.ResponseWriter, r *http.Reque
 	engine := h.evaluator.GetEngine()
 	summary := engine.GetPlatformSummary()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(summary)
+	WriteJSON(w, http.StatusOK, summary)
 }
 
 // GetFindings returns all active findings
@@ -68,8 +66,7 @@ func (h *TroubleshootingHandler) GetFindings(w http.ResponseWriter, r *http.Requ
 		"total":    len(findings),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // GetFinding returns a specific finding by ID
@@ -81,8 +78,7 @@ func (h *TroubleshootingHandler) GetFinding(w http.ResponseWriter, r *http.Reque
 
 	for _, finding := range findings {
 		if finding.ID == findingID {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(finding)
+			WriteJSON(w, http.StatusOK, finding)
 			return
 		}
 	}
@@ -104,8 +100,7 @@ func (h *TroubleshootingHandler) GetTenantFindings(w http.ResponseWriter, r *htt
 		"findings":   findings,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // TriggerScan triggers an immediate rule evaluation
@@ -125,9 +120,7 @@ func (h *TroubleshootingHandler) TriggerScan(w http.ResponseWriter, r *http.Requ
 		"status":  "running",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusAccepted, response)
 }
 
 // ResolveFinding marks a finding as resolved
@@ -145,8 +138,7 @@ func (h *TroubleshootingHandler) ResolveFinding(w http.ResponseWriter, r *http.R
 		"id":      findingID,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // GetRules returns all available rules
@@ -176,6 +168,5 @@ func (h *TroubleshootingHandler) GetRules(w http.ResponseWriter, r *http.Request
 		"total": len(ruleInfos),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }

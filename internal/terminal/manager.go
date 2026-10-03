@@ -30,9 +30,9 @@ type Manager struct {
 }
 
 // NewManager creates a new terminal manager
-func NewManager(client client.Client, config Config, logger logr.Logger) *Manager {
+func NewManager(c client.Client, config Config, logger logr.Logger) *Manager {
 	return &Manager{
-		client:   client,
+		client:   c,
 		config:   config,
 		sessions: make(map[string]*Session),
 		logger:   logger.WithName("terminal-manager"),
@@ -82,10 +82,11 @@ func (m *Manager) CreateSession(ctx context.Context, opts SessionOptions) (*Sess
 
 	if err := m.client.Get(ctx, key, existingPod); err == nil {
 		// Pod exists - check if it's running
-		if existingPod.Status.Phase == corev1.PodRunning {
+		switch existingPod.Status.Phase {
+		case corev1.PodRunning:
 			podExists = true
 			m.logger.Info("reusing existing toolbox pod", "podName", podName, "username", opts.Username)
-		} else if existingPod.Status.Phase == corev1.PodFailed || existingPod.Status.Phase == corev1.PodSucceeded {
+		case corev1.PodFailed, corev1.PodSucceeded:
 			// Pod is in a terminal state - delete it and create a new one
 			m.logger.Info("deleting failed/completed toolbox pod", "podName", podName, "phase", existingPod.Status.Phase)
 			_ = m.client.Delete(ctx, existingPod)

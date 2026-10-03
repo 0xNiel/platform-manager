@@ -68,7 +68,7 @@ func (w *ArgoWatcher) ScanArgoApplications(ctx context.Context, tenant *platform
 		// Parse sync status
 		syncStatus := w.getSyncStatus(&app)
 		switch syncStatus {
-		case "Synced":
+		case argoSyncStatusSynced:
 			summary.Synced++
 		case "OutOfSync":
 			summary.OutOfSync++
@@ -134,11 +134,16 @@ func (w *ArgoWatcher) belongsToTenant(app *unstructured.Unstructured, tenant *pl
 	return false
 }
 
+const (
+	argoSyncStatusSynced = "Synced"
+	argoStatusUnknown    = "Unknown"
+)
+
 // getSyncStatus extracts the sync status from an ArgoCD Application
 func (w *ArgoWatcher) getSyncStatus(app *unstructured.Unstructured) string {
 	status, found, err := unstructured.NestedString(app.Object, "status", "sync", "status")
 	if err != nil || !found {
-		return "Unknown"
+		return argoStatusUnknown
 	}
 	return status
 }
@@ -147,7 +152,7 @@ func (w *ArgoWatcher) getSyncStatus(app *unstructured.Unstructured) string {
 func (w *ArgoWatcher) getHealthStatus(app *unstructured.Unstructured) string {
 	status, found, err := unstructured.NestedString(app.Object, "status", "health", "status")
 	if err != nil || !found {
-		return "Unknown"
+		return argoStatusUnknown
 	}
 	return status
 }

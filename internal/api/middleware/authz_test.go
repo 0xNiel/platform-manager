@@ -128,7 +128,7 @@ func TestRequireCapability(t *testing.T) {
 	// Mock handler that just returns 200 OK
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})
 
 	tests := []struct {
@@ -193,7 +193,7 @@ func TestRequireCapability(t *testing.T) {
 func TestRequireAnyCapability(t *testing.T) {
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})
 
 	tests := []struct {
@@ -253,7 +253,7 @@ func TestRequireAnyCapability(t *testing.T) {
 func TestRequireAllCapabilities(t *testing.T) {
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})
 
 	tests := []struct {

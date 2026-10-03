@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"math/rand"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -279,7 +278,6 @@ func ptrInt32(i int32) *int32 {
 // randStringRunes generates a random string of length n
 func randStringRunes(n int) string {
 	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-	rand.Seed(time.Now().UnixNano())
 	b := make([]rune, n)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]

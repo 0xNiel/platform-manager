@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -51,8 +50,7 @@ func (h *MetricsHandler) GetNamespaceMetrics(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(nsMetrics)
+	WriteJSON(w, http.StatusOK, nsMetrics)
 }
 
 // GetTenantMetrics handles GET /api/v1/metrics/tenants/{id}
@@ -107,8 +105,7 @@ func (h *MetricsHandler) GetTenantMetrics(w http.ResponseWriter, r *http.Request
 		aggregated.TotalPods += nsMetrics.PodCount
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(aggregated)
+	WriteJSON(w, http.StatusOK, aggregated)
 }
 
 // GetPodMetrics handles GET /api/v1/metrics/pods/{namespace}/{podName}
@@ -137,6 +134,5 @@ func (h *MetricsHandler) GetPodMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(podMetrics)
+	WriteJSON(w, http.StatusOK, podMetrics)
 }

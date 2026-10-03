@@ -78,7 +78,7 @@ func (r *TenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Handle finalizer for cleanup
-	if tenant.ObjectMeta.DeletionTimestamp.IsZero() {
+	if tenant.DeletionTimestamp.IsZero() {
 		// Add finalizer if not present
 		if !controllerutil.ContainsFinalizer(tenant, tenantFinalizer) {
 			controllerutil.AddFinalizer(tenant, tenantFinalizer)

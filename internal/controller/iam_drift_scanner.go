@@ -115,11 +115,7 @@ func (s *IAMDriftScanner) ScanDrift(ctx context.Context) error {
 
 	// Scan each tenant
 	for _, tenant := range tenantList.Items {
-		tenantSummary, err := s.scanTenantDrift(ctx, tenant.Name)
-		if err != nil {
-			s.logger.Error(err, "Failed to scan tenant drift", "tenant", tenant.Name)
-			continue
-		}
+		tenantSummary := s.scanTenantDrift(ctx, tenant.Name)
 
 		platformSummary.TenantSummaries[tenant.Name] = tenantSummary
 		platformSummary.TotalRoles += tenantSummary.TotalRoles
@@ -151,7 +147,8 @@ func (s *IAMDriftScanner) ScanDrift(ctx context.Context) error {
 }
 
 // scanTenantDrift scans drift for a single tenant
-func (s *IAMDriftScanner) scanTenantDrift(ctx context.Context, tenantName string) (*iam.TenantDriftSummary, error) {
+// Role and policy scan failures are logged so the rest of the tenant is still reported.
+func (s *IAMDriftScanner) scanTenantDrift(ctx context.Context, tenantName string) *iam.TenantDriftSummary {
 	summary := &iam.TenantDriftSummary{
 		TenantName:  tenantName,
 		LastChecked: time.Now(),
@@ -204,13 +201,11 @@ func (s *IAMDriftScanner) scanTenantDrift(ctx context.Context, tenantName string
 		}
 	}
 
-	return summary, nil
+	return summary
 }
 
 // scanRoles scans all IAM roles for a tenant
 func (s *IAMDriftScanner) scanRoles(ctx context.Context, tenantName string) ([]iam.DriftResult, error) {
-	var results []iam.DriftResult
-
 	// Define the GVK for Crossplane IAM Role
 	roleGVK := schema.GroupVersionKind{
 		Group:   "iam.aws.upbound.io",
@@ -240,6 +235,7 @@ func (s *IAMDriftScanner) scanRoles(ctx context.Context, tenantName string) ([]i
 	)
 
 	// Check drift for each role
+	results := make([]iam.DriftResult, 0, len(roleList.Items))
 	for _, item := range roleList.Items {
 		result, err := s.driftChecker.CheckRoleDrift(ctx, &item)
 		if err != nil {
@@ -257,8 +253,6 @@ func (s *IAMDriftScanner) scanRoles(ctx context.Context, tenantName string) ([]i
 
 // scanPolicies scans all IAM policies for a tenant
 func (s *IAMDriftScanner) scanPolicies(ctx context.Context, tenantName string) ([]iam.DriftResult, error) {
-	var results []iam.DriftResult
-
 	// Define the GVK for Crossplane IAM Policy
 	policyGVK := schema.GroupVersionKind{
 		Group:   "iam.aws.upbound.io",
@@ -288,6 +282,7 @@ func (s *IAMDriftScanner) scanPolicies(ctx context.Context, tenantName string) (
 	)
 
 	// Check drift for each policy
+	results := make([]iam.DriftResult, 0, len(policyList.Items))
 	for _, item := range policyList.Items {
 		result, err := s.driftChecker.CheckPolicyDrift(ctx, &item)
 		if err != nil {

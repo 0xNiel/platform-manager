@@ -7,7 +7,6 @@ SPDX-License-Identifier: MIT
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/0xNiel/platform-manager/internal/controller"
@@ -48,8 +47,7 @@ func (h *IAMHandler) GetPlatformDrift(w http.ResponseWriter, r *http.Request) {
 		"lastScanTime": h.driftScanner.GetLastScanTime(),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // GetAllTenantsDrift returns drift summary for all tenants
@@ -77,8 +75,7 @@ func (h *IAMHandler) GetAllTenantsDrift(w http.ResponseWriter, r *http.Request) 
 		"lastScanTime": h.driftScanner.GetLastScanTime(),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // GetTenantDrift returns detailed drift information for a specific tenant
@@ -100,8 +97,7 @@ func (h *IAMHandler) GetTenantDrift(w http.ResponseWriter, r *http.Request) {
 		"details": summary.Drifts,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusOK, response)
 }
 
 // TriggerScan triggers an immediate drift scan
@@ -120,7 +116,5 @@ func (h *IAMHandler) TriggerScan(w http.ResponseWriter, r *http.Request) {
 		"message": "Drift scan initiated",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(response)
+	WriteJSON(w, http.StatusAccepted, response)
 }

@@ -69,7 +69,7 @@ func (s *ResourceScanner) scanKubernetesResources(ctx context.Context, tenant *p
 	for _, ns := range tenant.Spec.Namespaces {
 		// Scan Deployments
 		deployList := &appsv1.DeploymentList{}
-		if err := s.Client.List(ctx, deployList, client.InNamespace(ns)); err != nil {
+		if err := s.List(ctx, deployList, client.InNamespace(ns)); err != nil {
 			log.Error(err, "Failed to list Deployments", "namespace", ns)
 			return err
 		}
@@ -81,7 +81,7 @@ func (s *ResourceScanner) scanKubernetesResources(ctx context.Context, tenant *p
 
 		// Scan StatefulSets
 		stsListt := &appsv1.StatefulSetList{}
-		if err := s.Client.List(ctx, stsListt, client.InNamespace(ns)); err != nil {
+		if err := s.List(ctx, stsListt, client.InNamespace(ns)); err != nil {
 			log.Error(err, "Failed to list StatefulSets", "namespace", ns)
 			return err
 		}
@@ -93,7 +93,7 @@ func (s *ResourceScanner) scanKubernetesResources(ctx context.Context, tenant *p
 
 		// Scan DaemonSets
 		dsList := &appsv1.DaemonSetList{}
-		if err := s.Client.List(ctx, dsList, client.InNamespace(ns)); err != nil {
+		if err := s.List(ctx, dsList, client.InNamespace(ns)); err != nil {
 			log.Error(err, "Failed to list DaemonSets", "namespace", ns)
 			return err
 		}
@@ -105,7 +105,7 @@ func (s *ResourceScanner) scanKubernetesResources(ctx context.Context, tenant *p
 
 		// Scan Jobs
 		jobList := &batchv1.JobList{}
-		if err := s.Client.List(ctx, jobList, client.InNamespace(ns)); err != nil {
+		if err := s.List(ctx, jobList, client.InNamespace(ns)); err != nil {
 			log.Error(err, "Failed to list Jobs", "namespace", ns)
 			return err
 		}
@@ -117,7 +117,7 @@ func (s *ResourceScanner) scanKubernetesResources(ctx context.Context, tenant *p
 
 		// Scan CronJobs
 		cronJobList := &batchv1.CronJobList{}
-		if err := s.Client.List(ctx, cronJobList, client.InNamespace(ns)); err != nil {
+		if err := s.List(ctx, cronJobList, client.InNamespace(ns)); err != nil {
 			log.Error(err, "Failed to list CronJobs", "namespace", ns)
 			return err
 		}
@@ -163,7 +163,7 @@ func (s *ResourceScanner) scanCrossplaneResources(ctx context.Context, tenant *p
 			listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
 		}
 
-		if err := s.Client.List(ctx, list, listOpts...); err != nil {
+		if err := s.List(ctx, list, listOpts...); err != nil {
 			log.Error(err, "Failed to list Crossplane resources", "gvk", gvk.String())
 			// Don't return error, just log and continue
 			continue
@@ -199,7 +199,7 @@ func (s *ResourceScanner) scanArgoResources(ctx context.Context, tenant *platfor
 		client.InNamespace("argocd"), // ArgoCD apps are typically in the argocd namespace
 	}
 
-	if err := s.Client.List(ctx, appList, listOpts...); err != nil {
+	if err := s.List(ctx, appList, listOpts...); err != nil {
 		log.Error(err, "Failed to list ArgoCD applications")
 		return err
 	}
@@ -247,7 +247,7 @@ func (s *ResourceScanner) createOrUpdateResourceSummary(ctx context.Context, ten
 
 	// Typed objects from List come back with an empty TypeMeta, so resolve
 	// the GVK from the scheme instead of trusting obj.GetObjectKind().
-	gvk, err := s.Client.GroupVersionKindFor(obj)
+	gvk, err := s.GroupVersionKindFor(obj)
 	if err != nil {
 		return fmt.Errorf("failed to resolve GVK for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 	}
@@ -296,7 +296,7 @@ func (s *ResourceScanner) createOrUpdateResourceSummary(ctx context.Context, ten
 	resourceSummary.Status = s.normalizeResourceStatus(obj, category)
 	resourceSummary.Status.LastSeen = &metav1.Time{Time: time.Now()}
 
-	if err := s.Client.Status().Update(ctx, resourceSummary); err != nil {
+	if err := s.Status().Update(ctx, resourceSummary); err != nil {
 		log.Error(err, "Failed to update ResourceSummary status", "name", summaryName)
 		return err
 	}
@@ -352,7 +352,7 @@ func (s *ResourceScanner) normalizeCrossplaneStatus(obj client.Object) (platform
 	// Check for crossplane.io/paused annotation first
 	annotations := obj.GetAnnotations()
 	if annotations != nil {
-		if paused, exists := annotations["crossplane.io/paused"]; exists && paused == "true" {
+		if paused, exists := annotations[crossplanePausedAnnotation]; exists && paused == annotationValueTrue {
 			return platformv1alpha1.ResourceStatePaused, "Resource reconciliation is paused", nil
 		}
 	}
@@ -405,13 +405,14 @@ func (s *ResourceScanner) normalizeCrossplaneStatus(obj client.Object) (platform
 			}
 
 			// Check for Ready condition
-			if condType == "Ready" || condType == "Synced" {
-				if condStatus == "True" {
+			if condType == "Ready" || condType == conditionTypeSynced {
+				switch condStatus {
+				case conditionStatusTrue:
 					isReady = true
 					if message == "" {
 						message = condMessage
 					}
-				} else if condStatus == "False" {
+				case "False":
 					if condReason != "ReconcilePaused" {
 						isFailed = true
 						if message == "" {
@@ -449,13 +450,13 @@ func (s *ResourceScanner) normalizeArgoStatus(obj client.Object) (platformv1alph
 	healthStatus, _, _ := unstructured.NestedString(app.Object, "status", "health", "status")
 
 	// Determine state based on sync and health status
-	state := platformv1alpha1.ResourceStateUnknown
+	var state platformv1alpha1.ResourceState
 	message := fmt.Sprintf("Sync: %s, Health: %s", syncStatus, healthStatus)
 
 	// Map ArgoCD health to our state
 	switch healthStatus {
 	case "Healthy":
-		if syncStatus == "Synced" {
+		if syncStatus == argoSyncStatusSynced {
 			state = platformv1alpha1.ResourceStateReady
 		} else {
 			state = platformv1alpha1.ResourceStateWaiting
@@ -658,7 +659,7 @@ func (s *ResourceScanner) cleanupOrphanedResourceSummaries(ctx context.Context, 
 		},
 	}
 
-	if err := s.Client.List(ctx, summaryList, listOpts...); err != nil {
+	if err := s.List(ctx, summaryList, listOpts...); err != nil {
 		return fmt.Errorf("failed to list ResourceSummaries: %w", err)
 	}
 
@@ -673,7 +674,7 @@ func (s *ResourceScanner) cleanupOrphanedResourceSummaries(ctx context.Context, 
 
 		if !exists {
 			// Resource no longer exists, delete the ResourceSummary
-			if err := s.Client.Delete(ctx, &summary); err != nil {
+			if err := s.Delete(ctx, &summary); err != nil {
 				log.Error(err, "Failed to delete orphaned ResourceSummary", "summary", summary.Name)
 				continue
 			}
@@ -711,7 +712,7 @@ func (s *ResourceScanner) resourceExists(ctx context.Context, summary *platformv
 	}
 
 	// Try to get the resource
-	err := s.Client.Get(ctx, key, obj)
+	err := s.Get(ctx, key, obj)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// Resource not found, it no longer exists
