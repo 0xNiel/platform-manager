@@ -69,3 +69,6 @@ Thumbs.db
 
 # Personal notes (not for publication)
 .user/
+
+# Local demo state (kubeconfig, logs, pids) from make platform-up
+.platform/

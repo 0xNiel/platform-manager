@@ -25,14 +25,16 @@ spec:
     spec:
       containers:
         - name: processor
-          image: nginx:alpine
+          # Stand-in for a batch ETL job: a busy loop capped by the CPU limit.
+          image: busybox:1.36
+          command: ["sh", "-c", "while true; do :; done"]
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "16Mi"
+              cpu: "50m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "32Mi"
+              cpu: "75m"
 ---
 apiVersion: apps/v1
 kind: Deployment

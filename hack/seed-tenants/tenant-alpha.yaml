@@ -25,16 +25,17 @@ spec:
     spec:
       containers:
         - name: trainer
-          image: nginx:alpine
-          ports:
-            - containerPort: 80
+          # Stand-in for a training job: a busy loop, capped by the CPU limit,
+          # so the CPU charts have something real to show.
+          image: busybox:1.36
+          command: ["sh", "-c", "while true; do :; done"]
           resources:
             requests:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: "16Mi"
+              cpu: "50m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "32Mi"
+              cpu: "100m"
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -71,25 +71,26 @@ See [docs/architecture.md](docs/architecture.md) for the data model, the reconci
 
 ## Quick start
 
-You need Go 1.24+, Docker, kind, kubectl, Helm, Node 20, and the LocalStack CLI (or Docker).
+You need Docker (with about 6 GB of memory available), kind, kubectl, Helm, Go 1.24+, and Node 20.
 
 ```sh
-# 1. Start LocalStack (pinned to 4.12.0, which needs no account). It stands in for AWS IAM.
-make localstack-start
-
-# 2. Create a kind cluster with ArgoCD, Crossplane, and seeded tenants
-make dev-up
-
-# 3. Install the CRDs and run the controller + API on :9080
-DEV_MODE=true AWS_ENDPOINT=http://localhost:4566 make run-local
-
-# 4. In another terminal, start the UI on http://localhost:9082
-make web-install web-dev
+make platform-up
 ```
 
-To see drift detection pick something up, run `make localstack-create-drift`. It attaches an `s3:*` inline policy to a Crossplane-managed role behind Crossplane's back. Then trigger a scan from the IAM Drift page.
+That one command builds the whole demo. It creates a kind cluster and starts LocalStack in place of AWS. It installs ArgoCD, Crossplane with the AWS providers, and Prometheus. Then it seeds three tenants with a mix of healthy and broken resources, and starts the API and UI. The first run takes about 10 minutes, mostly image pulls. When it finishes, open <http://localhost:9082>.
 
-[docs/local-development.md](docs/local-development.md) covers the full setup, including the web terminal, seeding failure scenarios, and running the tests.
+The seed data gives every page something to show:
+
+- Healthy nginx services, and broken workloads (a bad image, a crash-looping pod, an unschedulable deployment)
+- One ArgoCD app that syncs on its own and one left OutOfSync for the Sync button
+- IAM roles, policies, S3 buckets, DynamoDB tables, and a composite MLPlatform claim, all managed by Crossplane
+- A Crossplane role that can never reconcile, because it points at an AWS account that no longer exists
+- IAM drift made directly in AWS: an `s3:*` inline policy and an `AdministratorAccess` attachment that the spec never declared
+- A paused S3 bucket
+
+`make platform-stop` stops the app and keeps the cluster. `make platform-down` deletes everything. `make platform-status` shows what's running. Your current kubectl context is never changed. The demo uses its own kubeconfig in `.platform/`.
+
+[docs/local-development.md](docs/local-development.md) covers running pieces by hand, the web terminal, and the tests.
 
 ## Repository layout
 

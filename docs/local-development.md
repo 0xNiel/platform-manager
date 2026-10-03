@@ -2,6 +2,19 @@
 
 The local setup is a kind cluster with ArgoCD and Crossplane. LocalStack stands in for AWS, and you run the manager and the UI from your machine. Everything is driven by `make`.
 
+## The short way
+
+```sh
+make platform-up      # everything below, plus seed data and the running app
+make platform-status  # what's running
+make platform-stop    # stop the API and UI, keep the cluster
+make platform-down    # delete the cluster and LocalStack
+```
+
+`hack/platform.sh` does the work. It talks to the cluster through `.platform/kubeconfig`, writes logs to `.platform/*.log`, and never changes your current kubectl context. Override ports with `make platform-up API_PORT=9090 UI_PORT=9083` if 9080 or 9082 are taken.
+
+The rest of this page is the same setup done by hand, which is useful when you're working on one piece.
+
 ## Prerequisites
 
 - Go 1.24+

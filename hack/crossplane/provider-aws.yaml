@@ -1,21 +1,40 @@
 # hack/crossplane/provider-aws.yaml
-# Crossplane AWS IAM Provider for local development
-# Compatible with Crossplane v1.20.0
+# Crossplane AWS providers for local development against LocalStack.
+# IAM backs the drift scanner. S3 and DynamoDB back the sample buckets,
+# tables, and the MLPlatform composition.
 ---
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
   name: provider-aws-iam
 spec:
-  # Using v1.7.0 which is compatible with Crossplane 1.20.0
+  # v1.7.0 is compatible with Crossplane 1.20.0
   package: xpkg.upbound.io/upbound/provider-aws-iam:v1.7.0
   runtimeConfigRef:
-    name: provider-aws-iam
+    name: provider-aws
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-s3
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-s3:v1.7.0
+  runtimeConfigRef:
+    name: provider-aws
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-dynamodb
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-dynamodb:v1.7.0
+  runtimeConfigRef:
+    name: provider-aws
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
 metadata:
-  name: provider-aws-iam
+  name: provider-aws
 spec:
   deploymentTemplate:
     spec:
@@ -40,4 +59,3 @@ spec:
                 requests:
                   memory: 256Mi
                   cpu: 100m
-

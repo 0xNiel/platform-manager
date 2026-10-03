@@ -1,0 +1,28 @@
+# hack/seed-tenants/failed-crossplane-resources.yaml
+# A Crossplane resource that can never reconcile, so the dashboard has a real
+# failure to show. It points at a ProviderConfig for an AWS account that has
+# been decommissioned (it doesn't exist), so every reconcile fails with
+# "cannot get referenced ProviderConfig".
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tenant-beta-legacy-etl-role
+  labels:
+    platform.io/tenant: tenant-beta
+    platform.io/component: data
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {"Service": "glue.amazonaws.com"},
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+  providerConfigRef:
+    name: legacy-account

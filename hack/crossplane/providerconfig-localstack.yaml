@@ -30,6 +30,9 @@ kind: ProviderConfig
 metadata:
   name: localstack
 spec:
+  # LocalStack serves S3 by path (localhost:4566/bucket). Virtual-host style
+  # (bucket.host.docker.internal) does not resolve inside the cluster.
+  s3_use_path_style: true
   credentials:
     source: Secret
     secretRef:

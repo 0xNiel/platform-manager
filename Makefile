@@ -250,6 +250,27 @@ AWS_REGION ?= us-east-1
 TOOLBOX_IMG ?= platform-manager-toolbox:dev
 CROSSPLANE_VERSION ?= 1.20.0
 
+##@ Demo
+
+PLATFORM_ENV = KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) LOCALSTACK_IMAGE=$(LOCALSTACK_IMAGE) \
+	CROSSPLANE_VERSION=$(CROSSPLANE_VERSION) TOOLBOX_IMG=$(TOOLBOX_IMG)
+
+.PHONY: platform-up
+platform-up: ## One command: cluster, LocalStack, ArgoCD, Crossplane, Prometheus, seeded tenants, API and UI
+	@$(PLATFORM_ENV) hack/platform.sh up
+
+.PHONY: platform-stop
+platform-stop: ## Stop the API, UI, and Prometheus port-forward (keeps the cluster)
+	@$(PLATFORM_ENV) hack/platform.sh stop
+
+.PHONY: platform-down
+platform-down: ## Stop everything and delete the kind cluster and LocalStack
+	@$(PLATFORM_ENV) hack/platform.sh down
+
+.PHONY: platform-status
+platform-status: ## Show what the demo has running
+	@$(PLATFORM_ENV) hack/platform.sh status
+
 ##@ Development Environment
 
 .PHONY: dev-up

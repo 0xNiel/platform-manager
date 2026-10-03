@@ -80,6 +80,9 @@ spec:
           forProvider:
             region: us-east-1
       patches:
+        # Label composed resources so Platform Manager attributes them to the tenant.
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.labels[platform.io/tenant]
         - fromFieldPath: spec.tenantName
           toFieldPath: metadata.name
           transforms:
@@ -109,10 +112,13 @@ spec:
               - name: modelId
                 type: S
               - name: version
-                type: N
+                type: "N"  # quoted: YAML 1.1 reads a bare N as false
             hashKey: modelId
             rangeKey: version
       patches:
+        # Label composed resources so Platform Manager attributes them to the tenant.
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.labels[platform.io/tenant]
         - fromFieldPath: spec.tenantName
           toFieldPath: metadata.name
           transforms:
@@ -150,6 +156,9 @@ spec:
                 ]
               }
       patches:
+        # Label composed resources so Platform Manager attributes them to the tenant.
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.labels[platform.io/tenant]
         - fromFieldPath: spec.tenantName
           toFieldPath: metadata.name
           transforms:
@@ -173,6 +182,9 @@ spec:
           providerConfigRef:
             name: localstack
       patches:
+        # Label composed resources so Platform Manager attributes them to the tenant.
+        - fromFieldPath: spec.tenantName
+          toFieldPath: metadata.labels[platform.io/tenant]
         - fromFieldPath: spec.tenantName
           toFieldPath: metadata.name
           transforms:
@@ -196,8 +208,8 @@ spec:
                           "s3:ListBucket"
                         ],
                         "Resource": [
-                          "arn:aws:s3:::%s-ml-models",
-                          "arn:aws:s3:::%s-ml-models/*"
+                          "arn:aws:s3:::%[1]s-ml-models",
+                          "arn:aws:s3:::%[1]s-ml-models/*"
                         ]
                       },
                       {
@@ -207,7 +219,7 @@ spec:
                           "dynamodb:PutItem",
                           "dynamodb:Query"
                         ],
-                        "Resource": "arn:aws:dynamodb:*:*:table/%s-ml-metadata"
+                        "Resource": "arn:aws:dynamodb:*:*:table/%[1]s-ml-metadata"
                       }
                     ]
                   }

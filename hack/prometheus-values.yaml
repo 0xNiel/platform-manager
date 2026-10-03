@@ -1,0 +1,24 @@
+# Minimal Prometheus for local development (prometheus-community/prometheus chart).
+# The manager queries container_cpu_usage_seconds_total and
+# container_memory_working_set_bytes (kubelet cAdvisor, scraped by the chart's
+# default config) and kube_pod_info (kube-state-metrics).
+alertmanager:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+kube-state-metrics:
+  enabled: true
+server:
+  retention: 6h
+  persistentVolume:
+    enabled: false
+  global:
+    scrape_interval: 15s
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
