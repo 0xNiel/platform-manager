@@ -10,8 +10,8 @@ flowchart LR
     OP -->|X-Auth-Request-* headers| API[Platform Manager API]
     API -->|controller ServiceAccount| K8s[Kubernetes API]
     API -->|IRSA role| AWS[AWS IAM, read-only calls]
-    API -->|creates| TB[Toolbox pod]
-    TB -->|toolbox-session SA, read-only| K8s
+    API -->|creates| TOOLBOX[Toolbox pod]
+    TOOLBOX -->|toolbox-session SA, read-only| K8s
 ```
 
 The backend does not authenticate users itself. OAuth2 Proxy handles login at the gateway and forwards the user's name, email, and groups as headers. The backend trusts those headers. **So the API must only be reachable through the proxy.** Anyone who can reach the API port directly can send whatever group header they like. In a real deployment, put a NetworkPolicy on the manager that only allows ingress from the gateway. `config/network-policy/` has a starting point for the metrics port.

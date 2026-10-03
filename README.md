@@ -4,6 +4,8 @@ A Kubernetes controller and web UI for running a multi-tenant Crossplane platfor
 
 I run a Crossplane-based platform on AWS, and I built this to answer the questions that come up when something breaks. Which tenants are unhealthy right now? Which Crossplane resources are paused or stuck? Has anyone changed an IAM role in the console that Crossplane doesn't know about? Without it, answering those takes a pile of `kubectl get` calls across several namespaces, the ArgoCD UI, and the AWS console.
 
+![Platform overview dashboard](docs/images/1-dashboard.png)
+
 ## What it does
 
 - **Platform and tenant health.** A dashboard rolls up Ready, Failed, Waiting, Unknown, and Paused counts across Crossplane managed resources, Deployments, StatefulSets, DaemonSets, Pods, and ArgoCD Applications. Each tenant gets a Healthy, Degraded, Critical, or Unknown rating, and you can click through to its resources.
@@ -12,6 +14,30 @@ I run a Crossplane-based platform on AWS, and I built this to answer the questio
 - **Operational actions.** Sync and refresh ArgoCD apps, pause, unpause, or force-reconcile Crossplane resources, and delete resources. Every action goes through role checks, writes an audit log entry, and records Prometheus metrics.
 - **Web terminal.** An xterm.js terminal in the browser, backed by a short-lived toolbox pod with `kubectl`, the AWS CLI, Helm, and the ArgoCD CLI. The pod runs as non-root with all capabilities dropped and a read-only ServiceAccount. Sessions are rate-limited, check the WebSocket Origin header, and end after 10 minutes idle.
 - **Role-based access.** Four roles (admin, infra, ml, readonly) map to capabilities such as `argo:sync`, `crossplane:pause`, and `terminal:use`. Identity comes from OAuth2 Proxy headers at the gateway.
+
+## Screenshots
+
+These come from the demo that `make platform-up` builds, with its seeded tenants and deliberate failures.
+
+**Tenants.** Health, failures, IAM drift, ArgoCD apps, and live CPU and memory from Prometheus for each tenant.
+
+![Tenants view](docs/images/2-tenants.png)
+
+**Resources.** Every tracked ArgoCD app and Crossplane resource, with actions: refresh and sync for apps, pause, reconcile, and delete for Crossplane resources. The paused S3 bucket offers Unpause instead.
+
+![Resources view](docs/images/3-resources.png)
+
+**IAM drift.** Both roles had a policy added directly in AWS that their Crossplane spec never declared, and both are flagged critical.
+
+![IAM drift detection](docs/images/4-iam-drift.png)
+
+**Troubleshooting.** Findings from the rule engine: a pod that can't pull its image, one in CrashLoopBackOff, and pods stuck in Pending.
+
+![Troubleshooting findings](docs/images/5-troubleshooting.png)
+
+**Web terminal.** A shell in a read-only toolbox pod, opened from the browser, with `kubectl` and the AWS CLI ready to use.
+
+![Web terminal](docs/images/6-web-terminal.png)
 
 ## Architecture
 
@@ -37,7 +63,7 @@ flowchart LR
         XP[Crossplane resources]
         ARGO[ArgoCD Applications]
         WL[Workloads]
-        TB[Toolbox pods]
+        TOOLBOX[Toolbox pods]
         PROM[Prometheus]
     end
 
@@ -51,7 +77,7 @@ flowchart LR
     RE --> XP & ARGO & WL
     API --> CRDs
     API --> PROM
-    TM --> TB
+    TM --> TOOLBOX
 ```
 
 The backend is a single Go binary built with Kubebuilder. One controller-runtime manager runs the reconcilers, the background scanners, and the HTTP API, and they all share the manager's informer cache. The frontend is Vue 3 with TypeScript. It builds either as a standalone SPA or as a single-spa micro-frontend that loads into a larger admin portal.
