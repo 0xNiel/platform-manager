@@ -72,19 +72,19 @@ For each Crossplane `Role` and `Policy` from `iam.aws.upbound.io`, the scanner:
 2. Reads Crossplane's view from `status.atProvider`. If it differs from the spec, it reports `reconciliation_lag`.
 3. Calls the AWS IAM API for the real role or policy.
 4. Parses both policy documents and normalizes them before comparing. Actions and resources can be a string or a list, statement order varies, and JSON key order varies, so a raw string comparison would flag noise.
-5. For roles, it also compares the trust policy and lists inline and attached managed policies. Any policy AWS has that the spec does not mention is reported as `extra_privileges`.
+5. For roles, it also compares the trust policy, and it checks the role's inline and attached managed policies against `spec.forProvider.inlinePolicy` and `spec.forProvider.managedPolicyArns`. Any policy AWS has that the spec does not declare is reported as `extra_privileges`. A declared inline policy that is missing from AWS is reported as `missing_privileges`.
 
 | Drift type | Severity | When |
 |------------|----------|------|
 | `extra_privileges` | critical | AWS has an inline or attached policy that the spec does not declare |
-| `missing_privileges` | critical | The role, policy, or trust policy declared in the spec does not exist in AWS |
+| `missing_privileges` | critical | The role, policy, trust policy, or an inline policy declared in the spec does not exist in AWS |
 | `policy_mismatch` | high | A managed policy document differs from the spec |
 | `policy_mismatch` | warning | A role's trust policy differs from the spec |
 | `reconciliation_lag` | warning | `status.atProvider` has not caught up with `spec.forProvider` |
 
 Results roll up per tenant and per platform, and they feed into `TenantHealth`. Extra privileges are critical because they are the security problem: something can do more than the spec allows. A missing resource is also critical, because it means Crossplane's view of AWS is wrong.
 
-An `orphaned_resource` type (in AWS but not managed by Crossplane) is defined in `internal/iam/types.go`, but the scanner does not produce it yet.
+Two gaps remain. Inline policies are matched by name only, so an inline policy whose document was edited in place is not caught yet. Policies attached through a separate `RolePolicyAttachment` resource are not looked up, so they show up as `extra_privileges`. Declare them in `managedPolicyArns` instead, or treat those findings as expected. An `orphaned_resource` type (in AWS but not managed by Crossplane) is also defined in `internal/iam/types.go`, but the scanner does not produce it yet.
 
 Locally, `AWS_ENDPOINT` points the AWS client at LocalStack. In a real cluster, credentials come from the default AWS chain, normally IRSA on EKS.
 

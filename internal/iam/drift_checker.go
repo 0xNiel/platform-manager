@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -132,7 +133,7 @@ func (dc *DriftChecker) CheckRoleDrift(ctx context.Context, roleResource *unstru
 	}
 
 	// Check for attached managed policies drift
-	if err := dc.checkAttachedPoliciesDrift(ctx, result, roleName); err != nil {
+	if err := dc.checkAttachedPoliciesDrift(ctx, result, roleName, specForProvider); err != nil {
 		dc.logger.Error(err, "failed to check attached policies", "role", roleName)
 	}
 
@@ -199,7 +200,8 @@ func (dc *DriftChecker) compareAssumeRolePolicy(result *DriftResult, specForProv
 	return nil
 }
 
-// checkInlinePoliciesDrift checks for drift in inline policies
+// checkInlinePoliciesDrift compares the role's inline policies in AWS with
+// spec.forProvider.inlinePolicy.
 func (dc *DriftChecker) checkInlinePoliciesDrift(ctx context.Context, result *DriftResult, roleName string, specForProvider map[string]interface{}) error {
 	// List inline policies from AWS
 	awsPolicyNames, err := dc.awsClient.ListRolePolicies(ctx, roleName)
@@ -207,44 +209,93 @@ func (dc *DriftChecker) checkInlinePoliciesDrift(ctx context.Context, result *Dr
 		return fmt.Errorf("failed to list inline policies: %w", err)
 	}
 
-	// Check if there are unexpected inline policies (drift)
-	if len(awsPolicyNames) > 0 {
-		for _, policyName := range awsPolicyNames {
-			result.Details = append(result.Details, DriftDetail{
-				Type:     DriftTypeExtraPrivileges,
-				Severity: DriftSeverityCritical,
-				Message:  fmt.Sprintf("Unexpected inline policy found in AWS: %s", policyName),
-				Path:     fmt.Sprintf("inlinePolicies.%s", policyName),
-				Actual:   policyName,
-			})
+	declared := declaredInlinePolicyNames(specForProvider)
+	inAWS := make(map[string]bool, len(awsPolicyNames))
+
+	for _, policyName := range awsPolicyNames {
+		inAWS[policyName] = true
+		if declared[policyName] {
+			continue
 		}
+		result.Details = append(result.Details, DriftDetail{
+			Type:     DriftTypeExtraPrivileges,
+			Severity: DriftSeverityCritical,
+			Message:  fmt.Sprintf("Inline policy %s exists in AWS but is not declared in the spec", policyName),
+			Path:     fmt.Sprintf("inlinePolicies.%s", policyName),
+			Actual:   policyName,
+		})
+	}
+
+	for policyName := range declared {
+		if inAWS[policyName] {
+			continue
+		}
+		result.Details = append(result.Details, DriftDetail{
+			Type:     DriftTypeMissingPrivileges,
+			Severity: DriftSeverityCritical,
+			Message:  fmt.Sprintf("Inline policy %s is declared in the spec but missing in AWS", policyName),
+			Path:     fmt.Sprintf("inlinePolicies.%s", policyName),
+			Expected: policyName,
+		})
 	}
 
 	return nil
 }
 
-// checkAttachedPoliciesDrift checks for drift in attached managed policies
-func (dc *DriftChecker) checkAttachedPoliciesDrift(ctx context.Context, result *DriftResult, roleName string) error {
+// checkAttachedPoliciesDrift compares the role's attached managed policies in
+// AWS with spec.forProvider.managedPolicyArns.
+func (dc *DriftChecker) checkAttachedPoliciesDrift(ctx context.Context, result *DriftResult, roleName string, specForProvider map[string]interface{}) error {
 	// List attached policies from AWS
 	attachedPolicies, err := dc.awsClient.ListAttachedRolePolicies(ctx, roleName)
 	if err != nil {
 		return fmt.Errorf("failed to list attached policies: %w", err)
 	}
 
-	// Check if there are unexpected attached policies (drift)
-	if len(attachedPolicies) > 0 {
-		for _, policy := range attachedPolicies {
-			result.Details = append(result.Details, DriftDetail{
-				Type:     DriftTypeExtraPrivileges,
-				Severity: DriftSeverityCritical,
-				Message:  fmt.Sprintf("Unexpected attached policy found: %s", *policy.PolicyName),
-				Path:     "attachedPolicies",
-				Actual:   *policy.PolicyArn,
-			})
+	declared := declaredManagedPolicyArns(specForProvider)
+
+	for _, policy := range attachedPolicies {
+		arn := aws.ToString(policy.PolicyArn)
+		if declared[arn] {
+			continue
 		}
+		result.Details = append(result.Details, DriftDetail{
+			Type:     DriftTypeExtraPrivileges,
+			Severity: DriftSeverityCritical,
+			Message:  fmt.Sprintf("Attached policy %s is not declared in the spec", aws.ToString(policy.PolicyName)),
+			Path:     "attachedPolicies",
+			Actual:   arn,
+		})
 	}
 
 	return nil
+}
+
+// declaredInlinePolicyNames returns the names in spec.forProvider.inlinePolicy.
+func declaredInlinePolicyNames(specForProvider map[string]interface{}) map[string]bool {
+	names := map[string]bool{}
+	items, _ := specForProvider["inlinePolicy"].([]interface{})
+	for _, item := range items {
+		policy, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if name, ok := policy["name"].(string); ok && name != "" {
+			names[name] = true
+		}
+	}
+	return names
+}
+
+// declaredManagedPolicyArns returns the ARNs in spec.forProvider.managedPolicyArns.
+func declaredManagedPolicyArns(specForProvider map[string]interface{}) map[string]bool {
+	arns := map[string]bool{}
+	items, _ := specForProvider["managedPolicyArns"].([]interface{})
+	for _, item := range items {
+		if arn, ok := item.(string); ok && arn != "" {
+			arns[arn] = true
+		}
+	}
+	return arns
 }
 
 // CheckPolicyDrift checks drift for an IAM Policy
