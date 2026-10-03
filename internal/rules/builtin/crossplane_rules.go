@@ -3,6 +3,7 @@ package builtin
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/0xNiel/platform-manager/internal/rules"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -257,13 +258,18 @@ func (r *StaleResourceRule) Evaluate(ctx rules.RuleContext) ([]rules.Finding, er
 
 	// Parse the timestamp (RFC3339 format)
 	// For simplicity, we'll check if it's been more than an hour since creation
-	ageHours := rules.GetAgeInHours(resource.GetCreationTimestamp(), ctx.Now)
+	// Staleness is time since the scanner last saw the resource, not its age.
+	lastSeenTime, err := time.Parse(time.RFC3339, lastSeen)
+	if err != nil {
+		return nil, nil
+	}
+	ageHours := ctx.Now.Sub(lastSeenTime).Hours()
 	if ageHours > 1 {
 		finding := rules.CreateFinding(
 			r,
 			resource,
 			fmt.Sprintf("ResourceSummary %s is stale", resource.GetName()),
-			fmt.Sprintf("Resource hasn't been updated recently. Last seen: %s (%.1f hours old)", lastSeen, ageHours),
+			fmt.Sprintf("Resource hasn't been updated recently. Last seen: %s (%.1f hours ago)", lastSeen, ageHours),
 			"Investigate why the resource scanner hasn't updated this resource. The underlying resource may no longer exist.",
 		)
 		finding.Metadata["lastSeen"] = lastSeen
