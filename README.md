@@ -51,36 +51,42 @@ flowchart LR
         OP[OAuth2 Proxy]
     end
 
-    subgraph Cluster[Kubernetes cluster]
-        subgraph PM[platform-manager binary]
-            API[HTTP API<br/>chi + WebSocket]
-            TC[Tenant controller]
-            IAM[IAM drift scanner]
-            RE[Rule evaluator]
-            TM[Terminal manager]
-        end
+    subgraph PM[platform-manager binary]
+        API[HTTP API<br/>chi + WebSocket]
+        TC[Tenant controller]
+        RE[Rule evaluator]
+        IAM[IAM drift scanner]
+        TM[Terminal manager]
+    end
+
+    subgraph K8S[Cluster resources]
         CRDs[(Tenant / TenantHealth<br/>ResourceSummary CRDs)]
         XP[Crossplane resources]
         ARGO[ArgoCD Applications]
         WL[Workloads]
-        TOOLBOX[Toolbox pods]
         PROM[Prometheus]
+        TOOLBOX[Toolbox pods]
     end
 
     AWS[(AWS IAM)]
 
-    UI --> OP --> API
-    TC --> CRDs
-    TC --> XP & ARGO & WL
-    IAM --> XP
-    IAM --> AWS
-    RE --> XP & ARGO & WL
+    UI --> OP
+    OP --> API
     API --> CRDs
     API --> PROM
+    TC --> CRDs
+    TC --> XP
+    TC --> ARGO
+    TC --> WL
+    RE --> XP
+    RE --> ARGO
+    RE --> WL
+    IAM --> XP
+    IAM --> AWS
     TM --> TOOLBOX
 ```
 
-The backend is a single Go binary built with Kubebuilder. One controller-runtime manager runs the reconcilers, the background scanners, and the HTTP API, and they all share the manager's informer cache. The frontend is Vue 3 with TypeScript. It builds either as a standalone SPA or as a single-spa micro-frontend that loads into a larger admin portal.
+The backend is a single Go binary built with Kubebuilder, deployed in the same cluster it manages. One controller-runtime manager runs the reconcilers, the background scanners, and the HTTP API, and they all share the manager's informer cache. The frontend is Vue 3 with TypeScript. It builds either as a standalone SPA or as a single-spa micro-frontend that loads into a larger admin portal.
 
 See [docs/architecture.md](docs/architecture.md) for the data model, the reconcile loop, how drift detection works, and the design decisions behind them.
 
